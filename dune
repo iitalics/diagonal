@@ -1,3 +1,4 @@
 (dirs
+  assets_src
   dia_js
   dia_ui)

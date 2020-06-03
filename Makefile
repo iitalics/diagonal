@@ -6,9 +6,10 @@ BROWSER ?= xdg-open
 
 JS     = dia_js/dia.bc.js
 STATIC = $(wildcard dia_js/*.html dia_js/*.css)
+RES    = dia_js/res/roundor.otf dia_js/res/nunito.ttf
 
 all:
-	${DUNE_BUILD} ${JS} ${STATIC}
+	${DUNE_BUILD} ${JS} ${STATIC} ${RES}
 
 open-preview:
 	${BROWSER} ${DUNE_TARG_DIR}/dia_js/index.html
