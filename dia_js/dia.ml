@@ -69,7 +69,7 @@ let () =
         ui |> Ui.render the_ctxt;
         ignore @@
           Dom_html.window##requestAnimationFrame
-            (Js.wrap_callback (fun t -> loop ()))
+            (Js.wrap_callback (fun _t -> loop ()))
       in
       loop () );
   end
