@@ -1,6 +1,6 @@
 BUILD_DIR     = .build
 DUNE_TARG_DIR = $(shell pwd)/${BUILD_DIR}/$(shell opam switch show)
-DUNE_BUILD    = dune build --profile=release --build-dir=${BUILD_DIR}
+DUNE_BUILD    = dune build --build-dir=${BUILD_DIR}
 
 BROWSER ?= xdg-open
 
