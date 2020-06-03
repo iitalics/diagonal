@@ -1,38 +1,50 @@
 module type S = sig
-  type t
-  val make: unit -> t
-  include Intf.Renderable_S with type t := t
-  include Intf.Key_input_S with type t := t
+  include Intf.View_S
+  val make: assets -> t
 end
 
 module Make
          (Draw: Intf.Draw_S)
+         (Rsrc: Intf.Rsrc_S with type font = Draw.Font.t)
        : S with type draw_ctxt = Draw.Ctxt.t
+            and type 'a rsrc = 'a Rsrc.t
   =
   struct
     open Draw
     type nonrec draw_ctxt = Ctxt.t
+    type nonrec 'a rsrc = 'a Rsrc.t
 
     (* init *)
 
     type t =
-      { items: string list;
+      { assets: assets;
+        items: string list;
         mutable sel: int }
 
-    let make () =
-      { items = [ "Singleplayer";
-                   "Tutorial";
-                   "Change Character";
-                   "Change Controls" ];
+    and assets =
+      { title_font: Font.t;
+        item_font: Font.t }
+
+    let make assets =
+      { assets;
+        items = [ "Singleplayer";
+                  "Tutorial";
+                  "Change Character";
+                  "Change Controls" ];
         sel = 0 }
+
+    let rsrc =
+      Rsrc.zip (fun title_font item_font -> { title_font; item_font })
+        (Rsrc.font_rsrc ~family:"roundor" ~size:150)
+        (Rsrc.font_rsrc ~family:"nunito" ~size:40)
 
     (* key handlers *)
 
-    let key_dn kc v =
-      let delta = match kc with
-        | "ArrowUp" -> -1
+    let key_dn key v =
+      let delta = match key with
+        | "ArrowUp"   -> -1
         | "ArrowDown" -> 1
-        | _ -> 0 in
+        | _           -> 0 in
       let n = List.length v.items in
       v.sel <- (v.sel + n + delta) mod n
 
@@ -46,31 +58,29 @@ module Make
       cx |> Ctxt.clear ~f:_BG_F
 
     let _TITLE = "Diag"
-    let _TITLE_FONT = Font.make ~fam:"roundor" ~size:150
     let _TITLE_F = Color.of_rgb_s "#fff"
 
     let _MIDDLE_PAD = 10
 
-    let render_title cx =
+    let render_title ~assets cx =
       let (cx_w, cx_h) = cx |> Ctxt.size in
-      let (mes_w, mes_h) = _TITLE_FONT |> Font.measure _TITLE in
+      let (mes_w, mes_h) = assets.title_font |> Font.measure _TITLE in
       cx |> Ctxt.text _TITLE
-              ~font:_TITLE_FONT
+              ~font:assets.title_font
               ~x:(cx_w / 2 - mes_w - _MIDDLE_PAD)
               ~y:((cx_h - mes_h) / 2)
               ~f:_TITLE_F
 
-    let _ITEM_FONT = Font.make ~fam:"nunito" ~size:40
     let _ITEM_F = Color.of_rgb_s "#eee"
     let _ITEM_SEL_F = Color.of_rgb_s "#f04"
     let _ITEM_SEP = 40
     let _ITEM_SEL_SEP = 60
 
-    let render_items items sel_idx cx =
+    let render_items ~assets items sel_idx cx =
       let (cx_w, cx_h) = cx |> Ctxt.size in
       let tot_w = List.fold_left
                     (fun tot_w it ->
-                      let (mes_w, _) = _ITEM_FONT |> Font.measure it in
+                      let (mes_w, _) = assets.item_font |> Font.measure it in
                       max tot_w mes_w)
                     0
                     items in
@@ -79,10 +89,10 @@ module Make
       ignore @@
         List.fold_left
           (fun (y, idx) it ->
-            let (mes_w, mes_h) = _ITEM_FONT |> Font.measure it in
+            let (mes_w, mes_h) = assets.item_font |> Font.measure it in
             let h = if idx = sel_idx then _ITEM_SEL_SEP else _ITEM_SEP in
             cx |> Ctxt.text it
-                    ~font:_ITEM_FONT
+                    ~font:assets.item_font
                     ~x:(x0 - mes_w + _MIDDLE_PAD)
                     ~y:(y + (h -  mes_h) / 2)
                     ~f:(if idx = sel_idx then _ITEM_SEL_F else _ITEM_F);
@@ -90,10 +100,10 @@ module Make
           (y0, 0)
           items
 
-    let render cx v =
+    let render cx { assets; items; sel } =
       begin
         cx |> render_bg;
-        cx |> render_title;
-        cx |> render_items v.items v.sel;
+        cx |> render_title ~assets;
+        cx |> render_items ~assets items sel;
       end
   end
