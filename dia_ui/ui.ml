@@ -12,17 +12,67 @@ module Make
     open Draw
     type nonrec draw_ctxt = Ctxt.t
 
+    let _BG_F = Color.of_rgb_s "#020202"
+
+    let render_bg cx =
+      cx |> Ctxt.clear ~f:_BG_F
+
+    let _TITLE = "Diag"
+    let _TITLE_FONT = Font.make ~fam:"roundor" ~size:150
+    let _TITLE_F = Color.of_rgb_s "#fff"
+
+    let _MIDDLE_PAD = 10
+
+    let render_title cx =
+      let (cx_w, cx_h) = cx |> Ctxt.size in
+      let (mes_w, mes_h) = _TITLE_FONT |> Font.measure _TITLE in
+      cx |> Ctxt.text _TITLE
+              ~font:_TITLE_FONT
+              ~x:(cx_w / 2 - mes_w - _MIDDLE_PAD)
+              ~y:((cx_h - mes_h) / 2)
+              ~f:_TITLE_F
+
+    let _ITEMS = [ "Singleplayer";
+                   "Tutorial";
+                   "Change Controls";
+                   "Change Character" ]
+    let _ITEM_FONT = Font.make ~fam:"nunito" ~size:40
+    let _ITEM_F = Color.of_rgb_s "#eee"
+    let _ITEM_SEL_F = Color.of_rgb_s "#f04"
+    let _ITEM_SEP = 40
+    let _ITEM_SEL_SEP = 60
+
+    let render_items sel_idx cx =
+      let (cx_w, cx_h) = cx |> Ctxt.size in
+      let tot_w = List.fold_left
+                    (fun tot_w it ->
+                      let (mes_w, _) = _ITEM_FONT |> Font.measure it in
+                      max tot_w mes_w)
+                    0
+                    _ITEMS in
+      let tot_h = (List.length _ITEMS - 1) * _ITEM_SEP + _ITEM_SEL_SEP in
+      let x0, y0 = cx_w / 2 + tot_w, (cx_h - tot_h) / 2 in
+      ignore @@
+        List.fold_left
+          (fun (y, idx) it ->
+            let (mes_w, mes_h) = _ITEM_FONT |> Font.measure it in
+            let h = if idx = sel_idx then _ITEM_SEL_SEP else _ITEM_SEP in
+            cx |> Ctxt.text it
+                    ~font:_ITEM_FONT
+                    ~x:(x0 - mes_w + _MIDDLE_PAD)
+                    ~y:(y + (h -  mes_h) / 2)
+                    ~f:(if idx = sel_idx then _ITEM_SEL_F else _ITEM_F);
+            (y + h, idx + 1))
+          (y0, 0)
+          _ITEMS
+
     type t = T
     let make () = T
 
-    let _BG_F = Color.of_rgb_s "#020202"
-    let _TITLE_FONT = Font.make ~fam:"Roundor" ~size:150
-    let _TITLE_F = Color.of_rgb_s "#fff"
-
-    let render c T : unit =
+    let render cx T : unit =
       begin
-        c |> Ctxt.clear ~f:_BG_F;
-        c |> Ctxt.text "Diag"
-               ~x:10 ~y:10 ~font:_TITLE_FONT ~f:_TITLE_F;
+        cx |> render_bg;
+        cx |> render_title;
+        cx |> render_items 2;
       end
   end

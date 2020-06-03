@@ -3,6 +3,11 @@ body {
 }
 
 @font-face {
-    font-family: 'Roundor';
+    font-family: 'roundor';
     src: url('res/roundor.otf') format('opentype');
+}
+
+@font-face {
+    font-family: 'nunito';
+    src: url('res/nunito.ttf') format('truetype');
 }
