@@ -4,11 +4,11 @@ DUNE_BUILD    = dune build --profile=release --build-dir=${BUILD_DIR}
 
 BROWSER ?= xdg-open
 
-JS   = dia_js/dia.bc.js
-HTML = $(wildcard dia_js/*.html)
+JS     = dia_js/dia.bc.js
+STATIC = $(wildcard dia_js/*.html dia_js/*.css)
 
 all:
-	${DUNE_BUILD} ${JS} ${HTML}
+	${DUNE_BUILD} ${JS} ${STATIC}
 
 open-preview:
 	${BROWSER} ${DUNE_TARG_DIR}/dia_js/index.html
