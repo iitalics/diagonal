@@ -29,6 +29,26 @@ module Font = struct
     (int_of_float mes##.width, int_of_float mes##.actualBoundingBoxAscent)
 end
 
+module Image = struct
+  type t =
+    { elem: Dom_html.imageElement Js.t;
+      sx: int; sy: int; sw: int; sh: int }
+
+  let make elem =
+    { elem;
+      sx = 0;
+      sy = 0;
+      sw = elem##.width;
+      sh = elem##.height }
+
+  let clip ~x ~y ~w ~h { elem; sx; sy; sw; sh } =
+    { elem;
+      sx = sx + x;
+      sy = sy + y;
+      sw = min (sw - x) w;
+      sh = min (sh - y) h }
+end
+
 module Ctxt = struct
   type t = Dom_html.canvasRenderingContext2D Js.t
 
@@ -49,4 +69,9 @@ module Ctxt = struct
         cx##.textAlign := _LEFT;
         cx##.textBaseline := _TOP;
         cx##fillText (Js.string str) (float_of_int x) (float_of_int y))
+
+  let image ~x ~y ~w ~h { Image.elem; sx; sy; sw; sh } (cx: t) =
+    cx##drawImage_full elem
+      (float_of_int x) (float_of_int y) (float_of_int w) (float_of_int h)
+      (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
 end
