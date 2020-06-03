@@ -1,3 +1,4 @@
+**/.merlin
 .build
 .preview
 .dir-locals.el
