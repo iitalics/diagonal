@@ -24,3 +24,9 @@ module type Renderable_S = sig
   type draw_ctxt
   val render: draw_ctxt -> t -> unit
 end
+
+module type Key_input_S = sig
+  type t
+  val key_dn: string -> t -> unit
+  val key_up: string -> t -> unit
+end

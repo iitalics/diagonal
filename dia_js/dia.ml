@@ -6,6 +6,8 @@ module Ui = Dia_ui.Ui.Make(Canvas_draw)
 let the_canvas = Dom_html.createCanvas Dom_html.document
 let the_ctxt   = the_canvas##getContext Dom_html._2d_
 
+let the_ui = Ui.make ()
+
 let () =
   begin
     (* add canvas to document *)
@@ -21,18 +23,31 @@ let () =
       ignore @@
         Dom.addEventListener
           Dom_html.window
-          (Dom.Event.make "resize")
-          (Dom.handler (fun _ -> resize (); Js._false))
+          Dom_html.Event.resize
+          (Dom.handler (fun _ -> resize (); Js._true))
           Js._false;
       resize () );
 
     (* draw every frame *)
-    ( let ui = Ui.make () in
-      let rec loop () =
-        ui |> Ui.render the_ctxt;
+    ( let rec loop () =
+        the_ui |> Ui.render the_ctxt;
         ignore @@
           Dom_html.window##requestAnimationFrame
             (Js.wrap_callback (fun _t -> loop ()))
       in
       loop () );
+
+    (* listen for key events *)
+    ( let on_key ev handle =
+        Dom.addEventListener
+          Dom_html.document##.body
+          ev
+          (Dom.handler
+             (fun e ->
+               Js.Optdef.iter e##.key (fun kc -> handle (Js.to_string kc) the_ui);
+               Js._true))
+          Js._false
+      in
+      ignore @@ on_key Dom_html.Event.keydown Ui.key_dn;
+      ignore @@ on_key Dom_html.Event.keyup   Ui.key_up );
   end

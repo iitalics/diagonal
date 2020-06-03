@@ -2,6 +2,7 @@ module type S = sig
   type t
   val make: unit -> t
   include Intf.Renderable_S with type t := t
+  include Intf.Key_input_S with type t := t
 end
 
 module Make
@@ -11,6 +12,33 @@ module Make
   struct
     open Draw
     type nonrec draw_ctxt = Ctxt.t
+
+    (* init *)
+
+    type t =
+      { items: string list;
+        mutable sel: int }
+
+    let make () =
+      { items = [ "Singleplayer";
+                   "Tutorial";
+                   "Change Character";
+                   "Change Controls" ];
+        sel = 0 }
+
+    (* key handlers *)
+
+    let key_dn kc v =
+      let delta = match kc with
+        | "ArrowUp" -> -1
+        | "ArrowDown" -> 1
+        | _ -> 0 in
+      let n = List.length v.items in
+      v.sel <- (v.sel + n + delta) mod n
+
+    let key_up _ _ = ()
+
+    (* rendering *)
 
     let _BG_F = Color.of_rgb_s "#020202"
 
@@ -32,25 +60,21 @@ module Make
               ~y:((cx_h - mes_h) / 2)
               ~f:_TITLE_F
 
-    let _ITEMS = [ "Singleplayer";
-                   "Tutorial";
-                   "Change Controls";
-                   "Change Character" ]
     let _ITEM_FONT = Font.make ~fam:"nunito" ~size:40
     let _ITEM_F = Color.of_rgb_s "#eee"
     let _ITEM_SEL_F = Color.of_rgb_s "#f04"
     let _ITEM_SEP = 40
     let _ITEM_SEL_SEP = 60
 
-    let render_items sel_idx cx =
+    let render_items items sel_idx cx =
       let (cx_w, cx_h) = cx |> Ctxt.size in
       let tot_w = List.fold_left
                     (fun tot_w it ->
                       let (mes_w, _) = _ITEM_FONT |> Font.measure it in
                       max tot_w mes_w)
                     0
-                    _ITEMS in
-      let tot_h = (List.length _ITEMS - 1) * _ITEM_SEP + _ITEM_SEL_SEP in
+                    items in
+      let tot_h = (List.length items - 1) * _ITEM_SEP + _ITEM_SEL_SEP in
       let x0, y0 = cx_w / 2 + tot_w, (cx_h - tot_h) / 2 in
       ignore @@
         List.fold_left
@@ -64,15 +88,12 @@ module Make
                     ~f:(if idx = sel_idx then _ITEM_SEL_F else _ITEM_F);
             (y + h, idx + 1))
           (y0, 0)
-          _ITEMS
+          items
 
-    type t = T
-    let make () = T
-
-    let render cx T : unit =
+    let render cx v =
       begin
         cx |> render_bg;
         cx |> render_title;
-        cx |> render_items 2;
+        cx |> render_items v.items v.sel;
       end
   end
