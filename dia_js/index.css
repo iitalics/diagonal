@@ -1,3 +1,8 @@
 body {
     margin: 0;
 }
+
+@font-face {
+    font-family: 'Roundor';
+    src: url('res/roundor.otf') format('opentype');
+}

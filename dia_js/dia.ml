@@ -1,25 +1,6 @@
 module Dom = Js_of_ocaml.Dom
 module Dom_html = Js_of_ocaml.Dom_html
 module Js = Js_of_ocaml.Js
-
-module Canvas_draw = struct
-  module Color = struct
-    type t = Js.js_string Js.t Js.opt
-    let none: t = Js.null
-    let of_rgb_s (s: string): t = Js.some (Js.string s)
-  end
-
-  module Ctxt = struct
-    type t = Dom_html.canvasRenderingContext2D Js.t
-    let size (c: t) = (c##.canvas##.width, c##.canvas##.height)
-    let clear ~f (c: t) =
-      let (w, h) = c |> size in
-      Js.Opt.case f
-        (fun () -> c##clearRect 0. 0. (float_of_int w) (float_of_int h))
-        (fun f -> c##.fillStyle := f; c##fillRect 0. 0. (float_of_int w) (float_of_int h))
-  end
-end
-
 module Ui = Dia_ui.Ui.Make(Canvas_draw)
 
 let the_canvas = Dom_html.createCanvas Dom_html.document
