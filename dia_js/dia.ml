@@ -14,22 +14,6 @@ module type Draw_S = sig
   end
 end
 
-(* UI implementation *)
-
-module type UI_S = sig
-  type draw_ctxt
-  val draw: draw_ctxt -> unit
-end
-
-module Make_UI(Draw: Draw_S)
-       : UI_S with type draw_ctxt := Draw.Ctxt.t
-  =
-  struct
-    let _BG_F = Draw.Color.of_rgb_s "#00f"
-    let draw c =
-      c |> Draw.Ctxt.clear ~f:_BG_F
-  end
-
 (* drawing implementation *)
 
 module Dom = Js_of_ocaml.Dom
@@ -54,7 +38,7 @@ module Canvas_draw = struct
   end
 end
 
-module UI = Make_UI(Canvas_draw)
+module Ui = Dia_ui.Ui.Make(Canvas_draw)
 
 let the_canvas = Dom_html.createCanvas Dom_html.document
 let the_ctxt   = the_canvas##getContext Dom_html._2d_
@@ -80,8 +64,9 @@ let () =
       resize () );
 
     (* draw every frame *)
-    ( let rec loop () =
-        UI.draw the_ctxt;
+    ( let ui = Ui.make () in
+      let rec loop () =
+        ui |> Ui.render the_ctxt;
         ignore @@
           Dom_html.window##requestAnimationFrame
             (Js.wrap_callback (fun t -> loop ()))
