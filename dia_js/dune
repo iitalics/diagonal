@@ -1,0 +1,6 @@
+(executable
+ (name dia)
+ (modes js)
+ (preprocess (pps js_of_ocaml-ppx))
+ (libraries
+   js_of_ocaml))
