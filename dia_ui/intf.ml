@@ -11,11 +11,17 @@ module type Draw_S = sig
     val measure: string -> t -> int * int
   end
 
+  module Image: sig
+    type t
+    val clip: x:int -> y:int -> w:int -> h:int -> t -> t
+  end
+
   module Ctxt: sig
     type t
     val size: t -> int * int
     val clear: f:Color.t -> t -> unit
     val text: x:int -> y:int -> font:Font.t -> f:Color.t -> string -> t -> unit
+    val image: x:int -> y:int -> w:int -> h:int -> Image.t -> t -> unit
   end
 end
 
