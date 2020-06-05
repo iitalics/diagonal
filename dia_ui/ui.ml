@@ -1,47 +1,86 @@
-module Make_loading_view
+module Make_views
          (Draw: Intf.Draw_S)
          (Rsrc: Intf.Rsrc_S with type font = Draw.Font.t)
-         (Loader: Intf.Loader_S with type 'a rsrc = 'a Rsrc.t)
-       : Intf.View_S with type assets = unit
-                      and type init = Loader.t
-                      and type 'a rsrc = 'a Rsrc.t
-                      and type draw_ctxt = Draw.Ctxt.t
+         (View_disp: View.Dispatcher_S with type draw_ctxt = Draw.Ctxt.t
+                                        and type 'a rsrc = 'a Rsrc.t)
   =
   struct
-    include Intf.No_assets(Rsrc)
-    type draw_ctxt = Draw.Ctxt.t
-    type init = Loader.t
+    module type View_S = View_disp.View_S
 
-    type t =
-      { loader: Loader.t;
-        mutable font: Draw.Font.t option }
+    module Green_screen: View_S with type init = unit =
+      struct
+        type view_disp = View_disp.t
+        type draw_ctxt = Draw.Ctxt.t
+        type 'a rsrc = 'a Rsrc.t
 
-    let make () loader =
-      { loader; font = None }
+        (* assets *)
 
-    let bg_f = Draw.Color.of_rgb_s "#111111"
-    let font_rsrc = Rsrc.font ~family:"nunito" ~size:30
-    let loading_text = "Loading..."
-    let loading_f = Draw.Color.of_rgb_s "#eeeeee"
+        type assets = unit
+        let assets_rsrc = Rsrc.const ()
 
-    let iter_font f (v: t) =
-      match v.font with
-      | Some(fnt) -> f fnt
-      | None -> match v.loader |> Loader.load font_rsrc with
-                | `Done(fnt) -> v.font <- Some(fnt); f fnt
-                | _ -> ()
+        (* init *)
 
-    let render_text cx font =
-      let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
-      let (mes_w, mes_h) = font |> Draw.Font.measure loading_text in
-      cx |> Draw.Ctxt.text loading_text
-              ~x:((cx_w - mes_w) / 2)
-              ~y:((cx_h - mes_h) / 2)
-              ~f:loading_f ~font
+        type t = bool ref
+        type init = unit
+        let make _assets _init = ref false
 
-    let render cx (v: t) =
-      cx |> Draw.Ctxt.clear ~f:bg_f;
-      v |> iter_font (render_text cx)
+        (* event handling *)
 
-    let handle_evt _ _ = ()
+        let handle_evt (evt: View.Evt.t) v = match evt with
+          | Key_dn("Escape") -> v := true
+          | Key_dn(x) -> Printf.printf "key dn: %S\n" x
+          | _ -> ()
+
+        let switch vd v = if !v then vd |> View_disp.pop_view
+
+        (* rendering *)
+
+        let bg_f = Draw.Color.of_rgb_s "#8f0"
+        let render cx _v = cx |> Draw.Ctxt.clear ~f:bg_f
+      end
+
+
+    module Main_menu: View_S with type init = unit =
+      struct
+        type view_disp = View_disp.t
+        type draw_ctxt = Draw.Ctxt.t
+        type 'a rsrc = 'a Rsrc.t
+
+        (* assets *)
+
+        type assets =
+          { title_font: Draw.Font.t;
+            item_font: Draw.Font.t }
+
+        let assets_rsrc =
+          Rsrc.zip (fun title_font item_font -> { title_font; item_font })
+            (Rsrc.font ~family:"roundor" ~size:100)
+            (Rsrc.font ~family:"roundor" ~size:30)
+
+        (* init *)
+
+        type t = { assets: assets; mutable switch: bool }
+        type init = unit
+        let make assets _init = { assets; switch = false }
+
+        (* event handling *)
+
+        let handle_evt (evt: View.Evt.t) (v: t) = match evt with
+          | Key_dn("g") -> v.switch <- true
+          | _ -> ()
+
+        let switch vd (v: t) =
+          if v.switch then
+            ( v.switch <- false;
+              vd |> View_disp.push_view
+                      (module Green_screen)
+                      ~init:() )
+
+        (* rendering *)
+
+        let bg_f = Draw.Color.of_rgb_s "#8df"
+        let render cx _v =
+          cx |> Draw.Ctxt.clear ~f:bg_f
+      end
+
   end

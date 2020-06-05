@@ -58,23 +58,3 @@ module No_assets(Rsrc: Rsrc_S) = struct
   type 'a rsrc = 'a Rsrc.t
   let assets_rsrc = Rsrc.const ()
 end
-
-(* generic view interface *)
-
-type evt =
-  | Key_dn of string
-  | Key_up of string
-
-module type View_S = sig
-  type t
-  type assets
-  type draw_ctxt
-  type init
-
-  val make: assets -> init -> t
-  val render: draw_ctxt -> t -> unit
-  val handle_evt: evt -> t -> unit
-
-  type 'a rsrc
-  val assets_rsrc: assets rsrc
-end
