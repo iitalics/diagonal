@@ -1,3 +1,13 @@
+(* misc. *)
+
+module type S0 = sig type t end
+
+module type Applicative_S = sig
+  type 'a t
+  val const: 'a -> 'a t
+  val zip: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+end
+
 (* drawing primitives *)
 
 module type Draw_S = sig
@@ -29,56 +39,42 @@ end
 (* resources *)
 
 module type Rsrc_S = sig
-  type 'a t
-  val const: 'a -> 'a t
-  val zip: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
-
+  include Applicative_S
   type image
+  val image: path:string -> image t
   type font
-  val image_rsrc: path:string -> image t
-  val font_rsrc: family:string -> size:int -> font t
+  val font: family:string -> size:int -> font t
 end
 
 module type Loader_S = sig
   type t
   type 'a rsrc
+  val make: unit -> t
   val load: 'a rsrc -> t -> [ `Loading | `Done of 'a | `Error of string ]
-end
-
-module type Has_assets_S = sig
-  type assets
-  type 'a rsrc
-  val rsrc: assets rsrc
-end
-
-module Rsrc_ext(Rsrc: Rsrc_S) = struct
-  include Rsrc
-  let zip3 f x y z = zip (@@) (zip f x y) z
 end
 
 module No_assets(Rsrc: Rsrc_S) = struct
   type assets = unit
   type 'a rsrc = 'a Rsrc.t
-  let rsrc = Rsrc.const ()
+  let assets_rsrc = Rsrc.const ()
 end
 
 (* generic view interface *)
 
-module type Renderable_S = sig
-  type t
-  type draw_ctxt
-  val render: draw_ctxt -> t -> unit
-end
-
-module type Key_input_S = sig
-  type t
-  val key_dn: string -> t -> unit
-  val key_up: string -> t -> unit
-end
+type evt =
+  | Key_dn of string
+  | Key_up of string
 
 module type View_S = sig
   type t
-  include Renderable_S with type t := t
-  include Key_input_S with type t := t
-  include Has_assets_S
+  type assets
+  type draw_ctxt
+  type init
+
+  val make: assets -> init -> t
+  val render: draw_ctxt -> t -> unit
+  val handle_evt: evt -> t -> unit
+
+  type 'a rsrc
+  val assets_rsrc: assets rsrc
 end
