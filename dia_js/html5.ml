@@ -87,12 +87,12 @@ end
 
 (* resources *)
 
-type 'a rsrc_stat =
-  [ `Loading | `Done of 'a | `Error of string ]
+type rsrc_stat =
+  [ `Loading | `Done | `Error of string ]
 
 module Rsrc_data = struct
   type t =
-    | Img of Dom_html.imageElement Js.t * unit rsrc_stat ref
+    | Img of Dom_html.imageElement Js.t * rsrc_stat ref
     | Font of Js.js_string Js.t
 
   type sink = t list ref
@@ -103,7 +103,7 @@ module Rsrc_data = struct
     ignore @@
       Dom.addEventListener elem
         Dom_html.Event.load
-        (Dom.handler (fun _ -> stat := `Done (); Js._true))
+        (Dom.handler (fun _ -> stat := `Done; Js._true))
         Js._false;
     ignore @@
       Dom.addEventListener elem
@@ -116,9 +116,9 @@ module Rsrc_data = struct
   let font ~family ~size =
     Font(Js.string @@ Printf.sprintf "%dpx %S" size family)
 
-  let is_done = function
-    | Img (_, stat) -> !stat <> `Loading
-    | Font _        -> true (* TODO: check if font is loaded *)
+  let stat = function
+    | Font _        -> `Done
+    | Img (_, stat) -> !stat
 
   let make_sink () = ref []
   let push v vs = vs := v :: !vs
@@ -126,8 +126,14 @@ module Rsrc_data = struct
     | v :: vs' -> vs := vs'; v
     | [] -> failwith "sink empty"
 
-  let all_done vs =
-    List.for_all is_done !vs
+  let sink_stat (vs: sink) =
+    let rec loop = function
+      | []      -> `Done
+      | v :: vs -> match v |> stat with
+                   | `Done                      -> loop vs
+                   | (`Error _ | `Loading) as x -> x
+    in
+    loop !vs
 end
 
 module Rsrc_spec = struct
@@ -154,7 +160,7 @@ module Rsrc_cache = struct
     | Some(rd) -> rd
     | None     ->
        let rd = rs |> Rsrc_spec.init in
-       Printf.printf "== loading %s ==\n" (rs |> Rsrc_spec.to_string);
+       Printf.printf "Loading %s\n" (rs |> Rsrc_spec.to_string);
        Hashtbl.add c rs rd; rd
 end
 
@@ -194,13 +200,13 @@ module Rsrc = struct
   let image ~path =
     of_spec (Img(path)) (function
         | Img(elem, _) -> Image.make elem
-        | _ -> failwith "wrong resource data")
+        | _            -> failwith "wrong resource data")
 
   type font = Font.t
   let font ~family ~size =
     of_spec (Font(family, size)) (function
         | Font(f) -> f
-        | _ -> failwith "wrong resource data")
+        | _       -> failwith "wrong resource data")
 end
 
 module Loader = struct
@@ -209,12 +215,10 @@ module Loader = struct
 
   let make () = Rsrc_cache.make ()
 
-  let load r c =
+  let load (r: _ Rsrc.t) (c: t) =
     let s = Rsrc_data.make_sink () in
     r#init c s;
-    if s |> Rsrc_data.all_done then
-      (* TODO: handle errors *)
-      `Done (r#build s)
-    else
-      `Loading
+    match s |> Rsrc_data.sink_stat with
+    | `Done                      -> `Done (r#build s)
+    | (`Error _ | `Loading) as x -> x
 end
