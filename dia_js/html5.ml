@@ -100,17 +100,14 @@ module Rsrc_data = struct
   let img ~path =
     let elem = Dom_html.createImg Dom_html.document in
     let stat = ref `Loading in
-    ignore @@
-      Dom.addEventListener elem
-        Dom_html.Event.load
-        (Dom.handler (fun _ -> stat := `Done; Js._true))
-        Js._false;
-    ignore @@
-      Dom.addEventListener elem
-        Dom_html.Event.error
-        (Dom.handler (fun _ -> stat := `Error path; Js._true))
-        Js._false;
-    elem##.src := Js.string path;
+    let listen dom_ev r =
+      ignore (Dom.addEventListener elem
+                dom_ev
+                (Dom.handler (fun _ -> stat := r; Js._true))
+                Js._false) in
+    listen Dom_html.Event.load `Done;
+    listen Dom_html.Event.error @@ `Error (Printf.sprintf "failed to load image %S" path);
+    elem##.src := Js.string @@ Printf.sprintf "res/%s.svg" path;
     Img(elem, stat)
 
   let font ~family ~size =
