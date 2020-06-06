@@ -5,7 +5,8 @@ module type S0 = sig type t end
 module type Applicative_S = sig
   type 'a t
   val const: 'a -> 'a t
-  val zip: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+  val map: ('a -> 'b) -> 'a t -> 'b t
+  val map2: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
 end
 
 (* drawing primitives *)

@@ -170,7 +170,12 @@ module Rsrc = struct
       method build _ = x
     end
 
-  let zip f (rx: 'a t) (ry: 'b t) : 'c t = object
+  let map f (r: 'a t) : 'b t = object
+      method init c s = r#init c s
+      method build s = f (r#build s)
+    end
+
+  let map2 f (rx: 'a t) (ry: 'b t) : 'c t = object
       method init c s =
         rx#init c s;
         ry#init c s

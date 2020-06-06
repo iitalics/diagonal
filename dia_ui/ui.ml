@@ -53,7 +53,7 @@ module Make_views
             item_font: Draw.Font.t }
 
         let assets_rsrc =
-          Rsrc.zip (fun title_font item_font -> { title_font; item_font })
+          Rsrc.map2 (fun title_font item_font -> { title_font; item_font })
             (Rsrc.font ~family:"roundor" ~size:100)
             (Rsrc.font ~family:"roundor" ~size:30)
 
