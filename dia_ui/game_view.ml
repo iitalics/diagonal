@@ -44,6 +44,13 @@ module Make
     (*** rendering ***)
 
     let bg_f = Draw.Color.of_rgb_s "#5cf"
-    let render cx _v = cx |> Draw.Ctxt.clear ~f:bg_f
+    let render cx v =
+      cx |> Draw.Ctxt.clear ~f:bg_f;
 
+      let map_img =
+        v.assets.map |> Draw.Image.clip
+                          ~x:0   ~y:0
+                          ~w:640 ~h:640
+      in
+      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0
   end

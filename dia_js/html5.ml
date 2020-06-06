@@ -48,6 +48,9 @@ module Image = struct
       sw = elem##.width;
       sh = elem##.height }
 
+  let size { sw; sh; _ } =
+    (sw, sh)
+
   let clip ~x ~y ~w ~h { elem; sx; sy; sw; sh } =
     { elem;
       sx = sx + x;
@@ -79,10 +82,10 @@ module Ctxt = struct
         cx##.textBaseline := _TOP;
         cx##fillText (Js.string str) (float_of_int x) (float_of_int y))
 
-  let image ~x ~y ~w ~h { Image.elem; sx; sy; sw; sh } (cx: t) =
+  let image ~x ~y { Image.elem; sx; sy; sw; sh } (cx: t) =
     cx##drawImage_full elem
-      (float_of_int x) (float_of_int y) (float_of_int w) (float_of_int h)
       (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
+      (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh)
 end
 
 (* resources *)

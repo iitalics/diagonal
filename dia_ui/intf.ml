@@ -25,6 +25,7 @@ module type Draw_S = sig
 
   module Image: sig
     type t
+    val size: t -> int * int
     val clip: x:int -> y:int -> w:int -> h:int -> t -> t
   end
 
@@ -33,7 +34,7 @@ module type Draw_S = sig
     val size: t -> int * int
     val clear: f:Color.t -> t -> unit
     val text: x:int -> y:int -> font:Font.t -> f:Color.t -> string -> t -> unit
-    val image: x:int -> y:int -> w:int -> h:int -> Image.t -> t -> unit
+    val image: x:int -> y:int -> Image.t -> t -> unit
   end
 end
 
