@@ -4,3 +4,9 @@
    roundor.otf)
  (deps ../../assets_src/download.sh)
  (action (system ". ../../assets_src/download.sh")))
+
+(rule
+ (targets sprites.svg map_stone.svg)
+ (action (progn
+          (copy "../../assets_src/sprites.svg" "sprites.svg")
+          (copy "../../assets_src/map_stone.svg" "map_stone.svg"))))

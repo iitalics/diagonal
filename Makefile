@@ -6,7 +6,11 @@ BROWSER ?= xdg-open
 
 JS     = dia_js/dia.bc.js
 STATIC = $(wildcard dia_js/*.html dia_js/*.css)
-RES    = dia_js/res/roundor.otf dia_js/res/nunito.ttf
+RES    =				\
+		dia_js/res/roundor.otf	\
+		dia_js/res/nunito.ttf	\
+		dia_js/res/sprites.svg	\
+		dia_js/res/map_stone.svg
 
 all:
 	${DUNE_BUILD} ${JS} ${STATIC} ${RES}
