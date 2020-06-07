@@ -71,6 +71,9 @@ module Ctxt = struct
              (* NOTE: notice order is different :S *)
              cx##transform a d b e c f)
 
+  let reset (cx: t) =
+    cx##setTransform 1. 0. 0. 1. 0. 0.
+
   let size (cx: t) =
     (cx##.canvas##.width, cx##.canvas##.height)
 
@@ -80,21 +83,23 @@ module Ctxt = struct
       (fun () -> cx##clearRect 0. 0. (float_of_int w) (float_of_int h))
       (fun f -> cx##.fillStyle := f; cx##fillRect 0. 0. (float_of_int w) (float_of_int h))
 
-  let text ~x ~y ~font ~f str (cx: t) =
+  let text ~x ~y ~font ~f ?t str (cx: t) =
+    cx |> transform t;
     Js.Opt.iter f
       (fun f ->
         cx##.fillStyle := f;
         cx##.font := font;
         cx##.textAlign := _LEFT;
         cx##.textBaseline := _TOP;
-        cx##fillText (Js.string str) (float_of_int x) (float_of_int y))
+        cx##fillText (Js.string str) (float_of_int x) (float_of_int y));
+    cx |> reset
 
   let image ~x ~y ?t { Image.elem; sx; sy; sw; sh } (cx: t) =
-    cx##save; cx |> transform t;
+    cx |> transform t;
     cx##drawImage_full elem
       (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
       (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh);
-    cx##restore
+    cx |> reset
 end
 
 (* resources *)
