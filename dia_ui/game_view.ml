@@ -47,10 +47,16 @@ module Make
     let render cx v =
       cx |> Draw.Ctxt.clear ~f:bg_f;
 
-      let map_img =
+      let map_img, blob_img =
         v.assets.map |> Draw.Image.clip
                           ~x:0   ~y:0
-                          ~w:640 ~h:640
+                          ~w:640 ~h:640,
+        v.assets.sprites |> Draw.Image.clip
+                              ~x:(64 * 3)
+                              ~y:(64 * 0)
+                              ~w:64 ~h:64
       in
-      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0
+
+      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0;
+      cx |> Draw.Ctxt.image blob_img ~x:64 ~y:64;
   end
