@@ -43,11 +43,15 @@ module Make
 
     (*** rendering ***)
 
-    let bg_f = Draw.Color.of_rgb_s "#5cf"
+    let bg_f   = Draw.Color.of_rgb_s "#5cf"
+    let grid_s = Draw.Color.of_rgb_s "#ccc"
 
     (* -- rendering the map -- *)
 
-    let map_w = 512
+    let cell_w = 64
+    let cells = 8
+    let map_w = cell_w * cells
+
     let map_img_ox, map_img_oy = 64, 64
     let map_img assets =
       assets.map |> Draw.Image.clip ~x:0 ~y:0 ~w:640 ~h:640
@@ -56,13 +60,38 @@ module Make
       cx |> Draw.Ctxt.image (v.assets |> map_img)
               ~t ~x:(- map_img_ox) ~y:(- map_img_oy)
 
+    let grid_xs, grid_ys =
+      let rad = 8 in
+      let outer1 i = (i   / 2 mod 9    ) * cell_w in
+      let outer2 i = (i   / 2   / 9    ) * (map_w - rad) + (i mod 2) * rad in
+      let inner1 i = (i   / 2 mod 7 + 1) * cell_w - rad  + (i mod 2) * rad * 2 in
+      let inner2 i = (i   / 2   / 7    ) * map_w in
+      let inner3 i = (i   / 2   / 7 + 1) * cell_w in
+      Array.init 324 (fun i -> if      i < 36  then outer1 i
+                               else if i < 72  then outer2 (i - 36)
+                               else if i < 100 then inner1 (i - 72)
+                               else if i < 128 then inner2 (i - 100)
+                               else if i < 226 then inner1 (i - 128)
+                               else                 inner3 (i - 226)),
+      Array.init 324 (fun i -> if      i < 36  then outer2 i
+                               else if i < 72  then outer1 (i - 36)
+                               else if i < 100 then inner2 (i - 72)
+                               else if i < 128 then inner1 (i - 100)
+                               else if i < 226 then inner3 (i - 128)
+                               else                 inner1 (i - 226))
+
+    let render_grid ~t cx v =
+      ignore v;
+      cx |> Draw.Ctxt.lines `Lines
+              ~t ~s:grid_s ~xs:grid_xs ~ys:grid_ys
+
+    (* -- rendering players -- *)
+
     let blob_img ~color ~face assets =
       assets.sprites |> Draw.Image.clip
                           ~x:(0 + 64 * face)
                           ~y:(0 + 64 * color)
                           ~w:64 ~h:64
-
-    (* -- rendering players -- *)
 
     let render_blob ~t ~i cx v =
       let t = Affine.make @@ Some t in
@@ -89,5 +118,6 @@ module Make
 
       (* draw stuff *)
       v |> render_map ~t:map_t cx;
-      for i = 0 to 63 do v |> render_blob ~t:map_t ~i cx done
+      for i = 0 to 3 do v |> render_blob ~t:map_t ~i cx done;
+      v |> render_grid ~t:map_t cx
   end
