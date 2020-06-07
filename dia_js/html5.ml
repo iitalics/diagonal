@@ -100,6 +100,25 @@ module Ctxt = struct
       (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
       (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh);
     cx |> reset
+
+  let[@ocaml.inline] lift_pen i = function
+    | `Lines           -> (i mod 2) = 0
+    | (`Strip | `Loop) -> i = 0
+
+  let lines ~s ~xs ~ys ?t mode (cx: t) =
+    cx |> transform t;
+    Js.Opt.iter s
+      (fun s ->
+        cx##beginPath;
+        xs |> Array.iteri (fun i x ->
+                  let x, y = float_of_int x +. 0.5, float_of_int ys.(i) +. 0.5 in
+                  if mode |> lift_pen i then
+                    cx##moveTo x y
+                  else
+                    cx##lineTo x y);
+        cx##.strokeStyle := s;
+        cx##stroke);
+    cx |> reset
 end
 
 (* resources *)

@@ -11,6 +11,9 @@ end
 
 (* drawing primitives *)
 
+type lines =
+  [ `Lines | `Strip ]
+
 module type Draw_S = sig
   module Color: sig
     type t
@@ -41,9 +44,13 @@ module type Draw_S = sig
     (* TODO: add transformations *)
     val text: x:int -> y:int -> font:Font.t -> f:Color.t -> ?t:Affine.t -> string -> t -> unit
 
-    (** [cx |> image ~x ~y ~t img] draws image [img] at position [x, y], optionally with
-       affine transformation [t]. *)
+    (** [cx |> image ~x ~y img] draws image [img] at position [x, y]. *)
     val image: x:int -> y:int -> ?t:Affine.t -> Image.t -> t -> unit
+
+    (** [cx |> lines ~s ~xs ~ys mode] draws lines with color [s], x-coordinates [xs], and
+       y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines
+       ([`Lines]) or if each adjacent vertex is connected in order ([`Strip]).  *)
+    val lines: s:Color.t -> xs:int array -> ys:int array -> ?t:Affine.t -> lines -> t -> unit
   end
 end
 
