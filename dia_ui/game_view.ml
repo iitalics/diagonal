@@ -44,35 +44,50 @@ module Make
     (*** rendering ***)
 
     let bg_f = Draw.Color.of_rgb_s "#5cf"
+
+    (* -- rendering the map -- *)
+
+    let map_w = 512
+    let map_img_ox, map_img_oy = 64, 64
+    let map_img assets =
+      assets.map |> Draw.Image.clip ~x:0 ~y:0 ~w:640 ~h:640
+
+    let render_map ~t cx v =
+      cx |> Draw.Ctxt.image (v.assets |> map_img)
+              ~t ~x:(- map_img_ox) ~y:(- map_img_oy)
+
+    let blob_img ~color ~face assets =
+      assets.sprites |> Draw.Image.clip
+                          ~x:(0 + 64 * face)
+                          ~y:(0 + 64 * color)
+                          ~w:64 ~h:64
+
+    (* -- rendering players -- *)
+
+    let render_blob ~t ~i cx v =
+      let t = Affine.make @@ Some t in
+      t |> Affine.translate
+             (float_of_int ((i mod 8) * 64))
+             (float_of_int ((i   / 8) * 64));
+      cx |> Draw.Ctxt.image
+              (v.assets |> blob_img
+                             ~color:(i mod 4)
+                             ~face:(i mod 5))
+              ~t ~x:0 ~y:0
+
+    (* -- main entry point -- *)
+
     let render cx v =
       let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
       cx |> Draw.Ctxt.clear ~f:bg_f;
 
-      let map_img, blob_img =
-        v.assets.map |> Draw.Image.clip
-                          ~x:0   ~y:0
-                          ~w:640 ~h:640,
-        fun col face ->
-        v.assets.sprites |> Draw.Image.clip
-                              ~x:(64 * face)
-                              ~y:(64 * col)
-                              ~w:64 ~h:64
-      in
-
-      let (map_w, map_h) = 640, 640 in
+      (* main transform for everything on the map *)
       let map_t = Affine.make None in
       map_t |> Affine.translate
                  ((cx_w - map_w) / 2 |> float_of_int)
-                 ((cx_h - map_h) / 2 |> float_of_int);
-      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0 ~t:map_t;
+                 ((cx_h - map_w) / 2 |> float_of_int);
 
-      for i = 1 to 64 do
-        let blob_t = Affine.make @@ Some map_t in
-        let bx, by = (i - 1) mod 8, (i - 1) / 8 in
-        blob_t |> Affine.translate 96. 96.;
-        blob_t |> Affine.translate (float_of_int (bx * 64)) (float_of_int (by * 64));
-        blob_t |> Affine.rotate (float_of_int (i - 1) *. 0.3);
-        cx |> Draw.Ctxt.image (blob_img (i mod 4) (i mod 5))
-                ~x:(-32) ~y:(-32) ~t:blob_t;
-      done
+      (* draw stuff *)
+      v |> render_map ~t:map_t cx;
+      for i = 0 to 63 do v |> render_blob ~t:map_t ~i cx done
   end
