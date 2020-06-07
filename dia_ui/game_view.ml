@@ -65,9 +65,11 @@ module Make
                  ((cx_h - map_h) / 2 |> float_of_int);
       cx |> Draw.Ctxt.image map_img ~x:0 ~y:0 ~t:map_t;
 
-      for i = 1 to 10 do
+      for i = 1 to 8 do
         let blob_t = Affine.make @@ Some map_t in
-        blob_t |> Affine.scale 1. (0.8 +. 0.2 *. float_of_int i);
-        cx |> Draw.Ctxt.image blob_img ~x:((i - 1) * 64) ~y:0 ~t:blob_t;
+        blob_t |> Affine.translate 96. 96.;
+        blob_t |> Affine.translate (float_of_int ((i - 1) * 64)) 0.;
+        blob_t |> Affine.rotate (float_of_int (i - 1) *. 0.6);
+        cx |> Draw.Ctxt.image blob_img ~x:(-32) ~y:(-32) ~t:blob_t;
       done
   end

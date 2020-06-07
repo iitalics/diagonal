@@ -50,6 +50,12 @@ let[@ocaml.inline] translate dx dy t =
          1. 0. dx
          0. 1. dy
 
+let[@ocaml.inline] rotate r t =
+  let sn, cs = sin r, cos r in
+  t |> transform
+         cs (-. sn) 0.
+         sn      cs 0.
+
 let[@ocaml.inline] apply x y t =
   (x *. t.m11 +. y *. t.m12 +. t.m13,
    x *. t.m21 +. y *. t.m22 +. t.m23)

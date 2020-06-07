@@ -12,6 +12,7 @@ val reset: t -> unit
 val transform: (t -> unit) f6_fn
 val scale: (t -> unit) f2_fn
 val translate: (t -> unit) f2_fn
+val rotate: float -> t -> unit
 
 val apply: (t -> float * float) f2_fn
 val ( |> ): float * float -> t -> float * float
