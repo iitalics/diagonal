@@ -52,9 +52,10 @@ module Make
         v.assets.map |> Draw.Image.clip
                           ~x:0   ~y:0
                           ~w:640 ~h:640,
+        fun col face ->
         v.assets.sprites |> Draw.Image.clip
-                              ~x:(64 * 3)
-                              ~y:(64 * 0)
+                              ~x:(64 * face)
+                              ~y:(64 * col)
                               ~w:64 ~h:64
       in
 
@@ -65,11 +66,13 @@ module Make
                  ((cx_h - map_h) / 2 |> float_of_int);
       cx |> Draw.Ctxt.image map_img ~x:0 ~y:0 ~t:map_t;
 
-      for i = 1 to 8 do
+      for i = 1 to 64 do
         let blob_t = Affine.make @@ Some map_t in
+        let bx, by = (i - 1) mod 8, (i - 1) / 8 in
         blob_t |> Affine.translate 96. 96.;
-        blob_t |> Affine.translate (float_of_int ((i - 1) * 64)) 0.;
-        blob_t |> Affine.rotate (float_of_int (i - 1) *. 0.6);
-        cx |> Draw.Ctxt.image blob_img ~x:(-32) ~y:(-32) ~t:blob_t;
+        blob_t |> Affine.translate (float_of_int (bx * 64)) (float_of_int (by * 64));
+        blob_t |> Affine.rotate (float_of_int (i - 1) *. 0.3);
+        cx |> Draw.Ctxt.image (blob_img (i mod 4) (i mod 5))
+                ~x:(-32) ~y:(-32) ~t:blob_t;
       done
   end
