@@ -119,7 +119,7 @@ module Rsrc_data = struct
                 Js._false) in
     listen Dom_html.Event.load `Done;
     listen Dom_html.Event.error @@ `Error (Printf.sprintf "failed to load image %S" path);
-    elem##.src := Js.string @@ Printf.sprintf "res/%s.svg" path;
+    elem##.src := Js.string @@ Printf.sprintf "res/%s.png" path;
     Img(elem, stat)
 
   let font ~family ~size =

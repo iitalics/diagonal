@@ -9,8 +9,8 @@ STATIC = $(wildcard dia_js/*.html dia_js/*.css)
 RES    =				\
 		dia_js/res/roundor.otf	\
 		dia_js/res/nunito.ttf	\
-		dia_js/res/sprites.svg	\
-		dia_js/res/map_stone.svg
+		dia_js/res/sprites.png	\
+		dia_js/res/map_stone.png
 
 all:
 	${DUNE_BUILD} ${JS} ${STATIC} ${RES}

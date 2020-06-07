@@ -6,7 +6,7 @@
  (action (system ". ../../assets_src/download.sh")))
 
 (rule
- (targets sprites.svg map_stone.svg)
+ (targets sprites.png map_stone.png)
  (action (progn
-          (copy "../../assets_src/sprites.svg" "sprites.svg")
-          (copy "../../assets_src/map_stone.svg" "map_stone.svg"))))
+          (copy "../../assets_src/sprites.png" "sprites.png")
+          (copy "../../assets_src/map_stone.png" "map_stone.png"))))
