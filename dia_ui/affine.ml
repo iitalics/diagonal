@@ -7,7 +7,7 @@ type t =
     mutable m21: float; mutable m22: float; mutable m23: float;
     parent: t option }
 
-let make ?parent () =
+let make parent =
   { m11 = 1.; m12 = 0.; m13 = 0.;
     m21 = 0.; m22 = 1.; m23 = 0.;
     parent }
@@ -54,10 +54,12 @@ let[@ocaml.inline] apply x y t =
   (x *. t.m11 +. y *. t.m12 +. t.m13,
    x *. t.m21 +. y *. t.m22 +. t.m23)
 
+  (*
 let to_matrix t =
   let t' = make () in
   t |> iter (fun n11 n12 n13 n21 n22 n23 -> t' |> transform n11 n12 n13 n21 n22 n23);
   (t'.m11, t'.m12, t'.m13, t'.m21, t'.m22, t'.m23)
+   *)
 
 let[@ocaml.inline] ( |> ) (x, y) t =
   apply x y t

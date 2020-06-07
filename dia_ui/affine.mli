@@ -3,10 +3,10 @@ type t
 type 'a f6_fn = float -> float -> float -> float -> float -> float -> 'a
 type 'a f2_fn = float -> float -> 'a
 
-val make: ?parent:t -> unit -> t
+val make: t option -> t
 val iter: unit f6_fn -> t -> unit
 val iter': unit f6_fn -> t option -> unit
-val to_matrix: t -> float * float * float * float * float * float
+(*val to_matrix: t -> float * float * float * float * float * float *)
 
 val reset: t -> unit
 val transform: (t -> unit) f6_fn
