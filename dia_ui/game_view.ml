@@ -45,6 +45,7 @@ module Make
 
     let bg_f = Draw.Color.of_rgb_s "#5cf"
     let render cx v =
+      let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
       cx |> Draw.Ctxt.clear ~f:bg_f;
 
       let map_img, blob_img =
@@ -57,6 +58,16 @@ module Make
                               ~w:64 ~h:64
       in
 
-      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0;
-      cx |> Draw.Ctxt.image blob_img ~x:64 ~y:64;
+      let (map_w, map_h) = 640, 640 in
+      let map_t = Affine.make None in
+      map_t |> Affine.translate
+                 ((cx_w - map_w) / 2 |> float_of_int)
+                 ((cx_h - map_h) / 2 |> float_of_int);
+      cx |> Draw.Ctxt.image map_img ~x:0 ~y:0 ~t:map_t;
+
+      for i = 1 to 10 do
+        let blob_t = Affine.make @@ Some map_t in
+        blob_t |> Affine.scale 1. (0.8 +. 0.2 *. float_of_int i);
+        cx |> Draw.Ctxt.image blob_img ~x:((i - 1) * 64) ~y:0 ~t:blob_t;
+      done
   end

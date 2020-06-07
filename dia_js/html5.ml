@@ -1,6 +1,7 @@
 module Dom = Js_of_ocaml.Dom
 module Dom_html = Js_of_ocaml.Dom_html
 module Js = Js_of_ocaml.Js
+module Affine = Dia_ui.Affine
 
 let _LEFT = Js.string "left"
 let _TOP = Js.string "top"
@@ -64,6 +65,12 @@ end
 module Ctxt = struct
   type t = Dom_html.canvasRenderingContext2D Js.t
 
+  let transform t (cx: t) =
+    t |> Affine.iter'
+           (fun a b c d e f ->
+             (* NOTE: notice order is different :S *)
+             cx##transform a d b e c f)
+
   let size (cx: t) =
     (cx##.canvas##.width, cx##.canvas##.height)
 
@@ -82,10 +89,12 @@ module Ctxt = struct
         cx##.textBaseline := _TOP;
         cx##fillText (Js.string str) (float_of_int x) (float_of_int y))
 
-  let image ~x ~y { Image.elem; sx; sy; sw; sh } (cx: t) =
+  let image ~x ~y ?t { Image.elem; sx; sy; sw; sh } (cx: t) =
+    cx##save; cx |> transform t;
     cx##drawImage_full elem
       (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
-      (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh)
+      (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh);
+    cx##restore
 end
 
 (* resources *)
