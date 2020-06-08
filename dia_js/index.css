@@ -16,3 +16,8 @@ body {
     font-family: 'space_mono';
     src: url('res/space_mono.ttf') format('truetype');
 }
+
+@font-face {
+    font-family: 'space_mono_bold';
+    src: url('res/space_mono_bold.ttf') format('truetype');
+}

@@ -2,7 +2,8 @@
  (targets
    nunito.ttf
    roundor.otf
-   space_mono.ttf)
+   space_mono.ttf
+   space_mono_bold.ttf)
  (deps ../../assets_src/download.sh)
  (action (system ". ../../assets_src/download.sh")))
 
