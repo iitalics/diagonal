@@ -207,25 +207,25 @@ module Make
                 ~x:(-mes_w / 2)
                 ~y:hud_item_act_text_dy);
 
-       (* alt item *)
        p.alt_item |>
          Option.iter (fun item ->
-             let t = Affine.extend t in
-             t |> Affine.translate_i
-                    ((1 - 2 * i) * hud_item_alt_dx)
-                    hud_item_alt_dy;
-             t |> Affine.scale
-                    hud_item_alt_scale hud_item_alt_scale;
-             cx |> Ctxt.image (assets |> item_icon_img item) ~t
-                     ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
+             (* alt item *)
+             (let t = Affine.extend t in
+              t |> Affine.translate_i
+                     ((1 - 2 * i) * hud_item_alt_dx)
+                     hud_item_alt_dy;
+              t |> Affine.scale
+                     hud_item_alt_scale hud_item_alt_scale;
+              cx |> Ctxt.image (assets |> item_icon_img item) ~t
+                      ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
 
-       (* alt item text *)
-       (let font = assets.hud_act_item in
-        let (mes_w, _) = font |> Font.measure hud_item_alt_text in
-        cx |> Ctxt.text hud_item_alt_text
-                ~t ~font ~c:hud_item_alt_text_c
-                ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
-                ~y:(hud_item_alt_text_dy)))
+             (* alt item text *)
+             (let font = assets.hud_act_item in
+              let (mes_w, _) = font |> Font.measure hud_item_alt_text in
+              cx |> Ctxt.text hud_item_alt_text
+                      ~t ~font ~c:hud_item_alt_text_c
+                      ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
+                      ~y:(hud_item_alt_text_dy))))
 
     let render_hud_turn ~t cx assets turn_num timer_f =
       let t = Affine.extend t in
