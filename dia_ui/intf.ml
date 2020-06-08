@@ -42,7 +42,6 @@ module type Draw_S = sig
 
     (** [cx |> text ~x ~y ~font ~c t] draws text [t] with color [c], font [font] at
        position [x, y]. *)
-    (* TODO: add transformations *)
     val text: x:int -> y:int -> font:Font.t -> c:Color.t -> ?t:Affine.t -> string -> t -> unit
 
     (** [cx |> image ~x ~y img] draws image [img] at position [x, y]. *)
