@@ -171,7 +171,7 @@ module Make
                           ~w:64 ~h:64
 
     let render_blob ~t ~i cx v =
-      let t = Affine.make @@ Some t in
+      let t = Affine.extend t in
       t |> Affine.translate
              (float_of_int ((i mod 8) * 64))
              (float_of_int ((i   / 8) * 64));
@@ -188,13 +188,13 @@ module Make
       cx |> Ctxt.clear ~c:bg_c;
 
       (* transform for everything on the map *)
-      let map_t = Affine.make None in
+      let map_t = Affine.make () in
       map_t |> Affine.translate
                  ((cx_w - map_w) / 2 |> float_of_int)
                  ((cx_h - map_w) / 2 |> float_of_int);
 
       (* transform for the HUD *)
-      let hud_t = Affine.make None in
+      let hud_t = Affine.make () in
       hud_t |> Affine.translate
                  ((cx_w - hud_w) / 2 |> float_of_int)
                  (float_of_int hud_y);

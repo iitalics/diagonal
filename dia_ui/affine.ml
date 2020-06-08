@@ -7,10 +7,13 @@ type t =
     mutable m21: float; mutable m22: float; mutable m23: float;
     parent: t option }
 
-let make parent =
+let make' parent =
   { m11 = 1.; m12 = 0.; m13 = 0.;
     m21 = 0.; m22 = 1.; m23 = 0.;
     parent }
+
+let[@ocaml.inline] make   _ = make' None
+let[@ocaml.inline] extend t = make' (Some t)
 
 let rec iter' f = function
   | None -> ()
@@ -19,7 +22,8 @@ let rec iter' f = function
      f t.m11 t.m12 t.m13
        t.m21 t.m22 t.m23
 
-let iter f t = iter' f (Some t)
+let[@ocaml.inline] iter f t =
+  iter' f (Some t)
 
 let[@ocaml.inline] reset t =
   t.m11 <- 1.; t.m12 <- 0.; t.m13 <- 0.;
