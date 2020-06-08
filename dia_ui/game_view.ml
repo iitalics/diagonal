@@ -46,15 +46,19 @@ module Make
 
     and player =
       { name: string;
-        hp: int }
+        hp: int;
+        item: item;
+        alt_item: item option }
+
+    and item = [ `S | `F | `P | `H ]
 
     let max_hp = 16
 
     type init = unit
     let make assets _init =
       { assets;
-        p0 = { name = "Player One"; hp = 16 };
-        p1 = { name = "Player Two"; hp = 4 } }
+        p0 = { name = "Player One"; hp = 16; item = `S; alt_item = Some `P };
+        p1 = { name = "Player Two"; hp = 4;  item = `F; alt_item = Some `S } }
 
     (*** event handling ***)
 
@@ -70,7 +74,7 @@ module Make
     let hud_bg_c = Color.of_rgb_s "#000" |> Color.with_alpha 0.5
     let hud_c    = Color.of_rgb_s "#fff"
     let hud_w = 800
-    let hud_h = 68
+    let hud_h = 114
     let hud_y = 12
     let hud_left = 9
     let hud_top = 8
@@ -78,11 +82,23 @@ module Make
     let hud_hpbar_y = 36
     let hud_hpbar_w = 386
     let hud_hpbar_h = 20
+    let hud_item_x  = 32
+    let hud_item_y  = 84
+    let hud_item_scale = 0.8
+    let hud_item_alt_dx = 60
+    let hud_item_alt_dy = 0
+    let hud_item_alt_scale = 0.65
+
+    let item_icon_img (it: item) assets =
+      let row = match it with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
+      assets.sprites |> Image.clip ~x:384 ~y:(row * 64) ~w:64 ~h:64
+
+    let item_icon_w = 64
 
     (* TODO:
        [x] player names
        [x] hp bars
-       [ ] items
+       [x] items
        [ ] turn timer
      *)
 
@@ -94,28 +110,66 @@ module Make
 
     let render_hud_players ~t cx assets p0 p1 =
       let font = assets.hud_pname in
+
       let pname p i =
         let (mes_w, _) = font |> Font.measure p.name in
-        let x, y = hud_left + i * (hud_w - mes_w - hud_left * 2), hud_top in
-        cx |> Ctxt.text p.name ~t ~c:hud_c ~font ~x ~y
+        let t = Affine.extend t in
+        t |> Affine.translate_i
+               ((1 - i) * hud_left
+                +     i * (hud_w - mes_w - hud_left))
+               hud_top;
+        cx |> Ctxt.text p.name ~t ~c:hud_c ~font ~x:0 ~y:0
       in
+
       let hp_bar p i =
-        let x0 = hud_left + i * (hud_w - hud_hpbar_w - hud_left * 2) in
-        let x1 = x0 + hud_hpbar_w in
-        let x1' = x0 + hud_hpbar_w * p.hp / max_hp in
-        let y0 = hud_hpbar_y in
-        let y1 = y0 + hud_hpbar_h in
+        let t = Affine.extend t in
+        t |> Affine.translate_i
+               ((1 - i) * hud_left
+                +     i * (hud_w - hud_hpbar_w - hud_left))
+               hud_hpbar_y;
+        let w  = hud_hpbar_w in
+        let w' = hud_hpbar_w * p.hp / max_hp in
+        let h  = hud_hpbar_h in
         cx |> Ctxt.vertices `Fill
                 ~t ~c:hud_hpbar_fill_c.(i)
-                ~xs:[| x0; x1'; x1'; x0 |]
-                ~ys:[| y0; y0; y1; y1 |];
+                ~xs:[| 0; w'; w'; 0 |]
+                ~ys:[| 0; 0; h; h |];
         cx |> Ctxt.vertices `Strip
                 ~t ~c:hud_c
-                ~xs:[| x0; x1; x1; x0; x0 |]
-                ~ys:[| y0; y0; y1; y1; y0 |]
+                ~xs:[| 0; w; w; 0; 0 |]
+                ~ys:[| 0; 0; h; h; 0 |]
       in
-      pname p0 0; hp_bar p0 0;
-      pname p1 1; hp_bar p1 1
+
+      let items p i =
+        let t = Affine.extend t in
+        t |> Affine.translate_i
+               ((1 - i) * hud_item_x
+                +     i * (hud_w - hud_item_x))
+               hud_item_y;
+
+        (* primary item *)
+        (let item = p.item in
+         let t = Affine.extend t in
+         t |> Affine.scale
+                hud_item_scale hud_item_scale;
+         cx |> Ctxt.image (assets |> item_icon_img item) ~t
+                 ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
+
+        (* alt item *)
+        p.alt_item |>
+          Option.iter (fun item ->
+              let t = Affine.extend t in
+              t |> Affine.translate_i
+                     (hud_item_alt_dx * (1 - 2 * i))
+                     hud_item_alt_dy;
+              t |> Affine.scale
+                     hud_item_alt_scale hud_item_alt_scale;
+              cx |> Ctxt.image (assets |> item_icon_img item) ~t
+                      ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
+      in
+
+      pname p0 0; hp_bar p0 0; items p0 0;
+      pname p1 1; hp_bar p1 1; items p1 1
 
     let render_hud ~t cx v =
       render_hud_bg ~t cx;
