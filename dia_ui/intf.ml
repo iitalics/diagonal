@@ -19,6 +19,7 @@ module type Draw_S = sig
     type t
     val none: t
     val of_rgb_s: string -> t
+    val with_alpha: float -> t -> t
   end
 
   module Font: sig
