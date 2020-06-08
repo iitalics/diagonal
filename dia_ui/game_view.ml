@@ -16,25 +16,43 @@ module Make
     type view_disp = View_disp.t
     type draw_ctxt = Draw.Ctxt.t
 
+    module Rsrc = struct
+      include Rsrc
+      include Util.Applicative(Rsrc)
+    end
+
     (*** assets ***)
 
     type assets =
       { sprites: Draw.Image.t;
-        map: Draw.Image.t }
+        map:     Draw.Image.t;
+        hud_pname: Draw.Font.t }
 
     let assets_rsrc =
-      Rsrc.map2 (fun sprites map -> { sprites; map })
-        (Rsrc.image ~path:"sprites")
-        (Rsrc.image ~path:"map_stone")
+      Rsrc.(map2 (fun [ sprites; map ] [ hud_pname ] -> { sprites; map; hud_pname })
+              (all [ image ~path:"sprites";
+                     image ~path:"map_stone" ])
+              (all [ font ~family:"space_mono" ~size:30 ]))
+        [@@ocaml.warning "-8"]
 
     (*** init ***)
 
     type t =
-      { assets: assets } [@@ocaml.unboxed]
+      { assets: assets;
+        p0: player;
+        p1: player }
+
+    and player =
+      { name: string;
+        hp: int }
+
+    let max_hp = 16
 
     type init = unit
     let make assets _init =
-      { assets }
+      { assets;
+        p0 = { name = "Player One"; hp = 16 };
+        p1 = { name = "Player Two"; hp = 4 } }
 
     (*** event handling ***)
 
@@ -44,9 +62,57 @@ module Make
     (*** rendering ***)
 
     let bg_c   = Draw.Color.of_rgb_s "#5cf"
-    let grid_c = Draw.Color.of_rgb_s "#ccc"
+
+    (* -- rendering the HUD -- *)
+
+    let hud_c  = Draw.Color.of_rgb_s "#fff"
+    let hud_c' = Draw.Color.of_rgb_s "#000"
+    let hud_w = 800
+    let hud_top = 8
+    let hud_hpbar_fill_c = Draw.Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
+    let hud_hpbar_y = 42
+    let hud_hpbar_w = 380
+    let hud_hpbar_h = 20
+
+    (* TODO:
+       [x] player names
+       [x] hp bars
+       [ ] items
+       [ ] turn timer
+     *)
+
+    let render_hud_players ~t cx assets p0 p1 =
+      let font = assets.hud_pname in
+      let pname p i =
+        let (mes_w, _) = font |> Draw.Font.measure p.name in
+        let x, y = i * (hud_w - mes_w), hud_top in
+        cx |> Draw.Ctxt.text p.name ~t ~c:hud_c' ~font ~x:(x + 1) ~y:(y + 1);
+        cx |> Draw.Ctxt.text p.name ~t ~c:hud_c  ~font ~x         ~y
+      in
+      let hp_bar p i =
+        let x0 = i * (hud_w - hud_hpbar_w) in
+        let x1 = x0 + hud_hpbar_w in
+        let x1' = x0 + hud_hpbar_w * p.hp / max_hp in
+        let y0 = hud_hpbar_y in
+        let y1 = y0 + hud_hpbar_h in
+        cx |> Draw.Ctxt.vertices `Fill
+                ~t ~c:hud_hpbar_fill_c.(i)
+                ~xs:[| x0; x1'; x1'; x0 |]
+                ~ys:[| y0; y0; y1; y1 |];
+        cx |> Draw.Ctxt.vertices `Strip
+                ~t ~c:hud_c
+                ~xs:[| x0; x1; x1; x0; x0 |]
+                ~ys:[| y0; y0; y1; y1; y0 |]
+      in
+      pname p0 0; hp_bar p0 0;
+      pname p1 1; hp_bar p1 1
+
+    let render_hud ~t cx v =
+      render_hud_players ~t cx v.assets v.p0 v.p1
 
     (* -- rendering the map -- *)
+
+    let grid_c = Draw.Color.of_rgb_s "#ccc"
 
     let cell_w = 64
     let cells = 8
@@ -82,7 +148,7 @@ module Make
 
     let render_grid ~t cx v =
       ignore v;
-      cx |> Draw.Ctxt.lines `Lines
+      cx |> Draw.Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
     (* -- rendering players -- *)
@@ -110,14 +176,23 @@ module Make
       let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
       cx |> Draw.Ctxt.clear ~c:bg_c;
 
-      (* main transform for everything on the map *)
+      (* transform for everything on the map *)
       let map_t = Affine.make None in
       map_t |> Affine.translate
                  ((cx_w - map_w) / 2 |> float_of_int)
                  ((cx_h - map_w) / 2 |> float_of_int);
 
+      (* transform for the HUD *)
+      let hud_t = Affine.make None in
+      hud_t |> Affine.translate
+                 ((cx_w - hud_w) / 2 |> float_of_int)
+                 0.;
+
       (* draw stuff *)
-      v |> render_map ~t:map_t cx;
-      for i = 0 to 3 do v |> render_blob ~t:map_t ~i cx done;
-      v |> render_grid ~t:map_t cx
+      begin
+        v |> render_map ~t:map_t cx;
+        for i = 0 to 3 do v |> render_blob ~t:map_t ~i cx done;
+        v |> render_grid ~t:map_t cx;
+        v |> render_hud ~t:hud_t cx;
+      end
   end
