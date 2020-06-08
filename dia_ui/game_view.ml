@@ -95,7 +95,7 @@ module Make
     let hud_c    = Color.of_rgb_s "#fff"
     let hud_w = 800
     let hud_h = 128
-    let hud_y = 12
+    let hud_y = 30
     let hud_left = 9
     let hud_top = 8
     let hud_hpbar_fill_c = Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
@@ -252,6 +252,7 @@ module Make
     let cell_w = 64
     let cells = 8
     let map_w = cell_w * cells
+    let map_y = 260
 
     let map_img_ox, map_img_oy = 64, 64
     let map_img assets =
@@ -308,20 +309,20 @@ module Make
     (* -- main entry point -- *)
 
     let render cx v =
-      let (cx_w, cx_h) = cx |> Ctxt.size in
+      let (cx_w, _) = cx |> Ctxt.size in
       cx |> Ctxt.clear ~c:bg_c;
 
       (* transform for everything on the map *)
       let map_t = Affine.make () in
-      map_t |> Affine.translate
-                 ((cx_w - map_w) / 2 |> float_of_int)
-                 ((cx_h - map_w) / 2 |> float_of_int);
+      map_t |> Affine.translate_i
+                 ((cx_w - map_w) / 2)
+                 map_y;
 
       (* transform for the HUD *)
       let hud_t = Affine.make () in
-      hud_t |> Affine.translate
-                 ((cx_w - hud_w) / 2 |> float_of_int)
-                 (float_of_int hud_y);
+      hud_t |> Affine.translate_i
+                 ((cx_w - hud_w) / 2)
+                 hud_y;
 
       (* draw stuff *)
       begin
