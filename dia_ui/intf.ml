@@ -11,8 +11,8 @@ end
 
 (* drawing primitives *)
 
-type lines =
-  [ `Lines | `Strip ]
+type vertices =
+  [ `Lines | `Strip | `Fill ]
 
 module type Draw_S = sig
   module Color: sig
@@ -47,10 +47,11 @@ module type Draw_S = sig
     (** [cx |> image ~x ~y img] draws image [img] at position [x, y]. *)
     val image: x:int -> y:int -> ?t:Affine.t -> Image.t -> t -> unit
 
-    (** [cx |> lines ~xs ~ys ~c mode] draws lines with color [c], x-coordinates [xs], and
-       y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines
-       ([`Lines]) or if each adjacent vertex is connected in order ([`Strip]).  *)
-    val lines: xs:int array -> ys:int array -> c:Color.t -> ?t:Affine.t -> lines -> t -> unit
+    (** [cx |> lines ~xs ~ys ~c mode] draws vertices with color [c], x-coordinates [xs],
+       and y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines
+       ([`Lines]), if each adjacent vertex is connected in order ([`Strip]), or if the
+       vertices represent the points of a filled polygon ([`Fill]). *)
+    val vertices: xs:int array -> ys:int array -> c:Color.t -> ?t:Affine.t -> vertices -> t -> unit
   end
 end
 

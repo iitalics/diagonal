@@ -102,22 +102,29 @@ module Ctxt = struct
     cx |> reset
 
   let[@ocaml.inline] lift_pen i = function
-    | `Lines           -> (i mod 2) = 0
-    | (`Strip | `Loop) -> i = 0
+    | `Lines -> (i mod 2) = 0
+    | _      -> i = 0
 
-  let lines ~xs ~ys ~c ?t mode (cx: t) =
+  let[@ocaml.inline] is_fill = function
+    | `Fill -> true
+    | _ -> false
+
+  let vertices ~xs ~ys ~c ?t mode (cx: t) =
     cx |> transform t;
+    if not (mode |> is_fill) then cx##translate 0.5 0.5;
     Js.Opt.iter c
       (fun c ->
-        cx##.strokeStyle := c;
         cx##beginPath;
         xs |> Array.iteri (fun i x ->
-                  let x, y = float_of_int x +. 0.5, float_of_int ys.(i) +. 0.5 in
+                  let x, y = float_of_int x, float_of_int ys.(i) in
                   if mode |> lift_pen i then
                     cx##moveTo x y
                   else
                     cx##lineTo x y);
-        cx##stroke);
+        if mode |> is_fill then
+          ( cx##.fillStyle   := c; cx##fill )
+        else
+          ( cx##.strokeStyle := c; cx##stroke ));
     cx |> reset
 end
 
