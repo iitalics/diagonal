@@ -29,7 +29,8 @@ module Make
       { sprites: Image.t;
         map:     Image.t;
         hud_p_name:   Font.t;
-        hud_act_item: Font.t }
+        hud_act_item: Font.t;
+        hud_turn:     Font.t }
 
     let assets_rsrc =
       let images =
@@ -38,14 +39,15 @@ module Make
       in
       let fonts =
         Rsrc.(all [ font ~family:"space_mono" ~size:24;
-                    font ~family:"space_mono" ~size:15 ])
+                    font ~family:"space_mono" ~size:15;
+                    font ~family:"space_mono_bold" ~size:16 ])
       in
       Rsrc.map2
         (fun[@ocaml.warning "-8"]
             [ sprites; map ]
-            [ hud_p_name; hud_act_item ]
+            [ hud_p_name; hud_act_item; hud_turn ]
          ->
-          { sprites; map; hud_p_name; hud_act_item })
+          { sprites; map; hud_p_name; hud_act_item; hud_turn })
         images
         fonts
 
@@ -54,7 +56,9 @@ module Make
     type t =
       { assets: assets;
         p0: player;
-        p1: player }
+        p1: player;
+        turn_num: int;
+        turn_timer_f: int  }
 
     and player =
       { name: string;
@@ -65,12 +69,16 @@ module Make
     and item = [ `S | `F | `P | `H ]
 
     let max_hp = 16
+    let fps = 60
+    let turn_total_f = fps * 3
 
     type init = unit
     let make assets _init =
       { assets;
         p0 = { name = "Player One"; hp = 16; item = `S; alt_item = Some `P };
-        p1 = { name = "Player Two"; hp = 4;  item = `F; alt_item = Some `S } }
+        p1 = { name = "Player Two"; hp = 4;  item = `F; alt_item = Some `S };
+        turn_num = 3;
+        turn_timer_f = 160 }
 
     (*** event handling ***)
 
@@ -83,7 +91,7 @@ module Make
 
     (* -- rendering the HUD -- *)
 
-    let hud_bg_c = Color.of_rgb_s "#000" |> Color.with_alpha 0.5
+    let hud_bg_c = Color.(of_rgb_s "#000" |> with_alpha 0.5)
     let hud_c    = Color.of_rgb_s "#fff"
     let hud_w = 800
     let hud_h = 128
@@ -106,19 +114,18 @@ module Make
     let hud_item_alt_text = "secondary"
     let hud_item_alt_text_c = Color.of_rgb_s "#111"
     let hud_item_alt_text_dy = 20
+    let hud_turn_x = hud_w / 2
+    let hud_turn_y = 82
+    let hud_turn_bar_w = 160
+    let hud_turn_bar_h = 12
+    let hud_turn_bar_dy = 20
+    let hud_turn_bar_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.6)
 
     let item_icon_img (it: item) assets =
       let row = match it with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
       assets.sprites |> Image.clip ~x:384 ~y:(row * 64) ~w:64 ~h:64
 
     let item_icon_w = 64
-
-    (* TODO:
-       [x] player names
-       [x] hp bars
-       [x] items
-       [ ] turn timer
-     *)
 
     let render_hud_bg ~t cx =
       cx |> Ctxt.vertices `Fill
@@ -206,9 +213,37 @@ module Make
       p_name p0 0; hp_bar p0 0; items p0 0;
       p_name p1 1; hp_bar p1 1; items p1 1
 
-    let render_hud ~t cx v =
-      render_hud_bg ~t cx;
-      render_hud_players ~t cx v.assets v.p0 v.p1
+    let render_hud_turn ~t cx assets turn_num timer_f =
+      let t = Affine.extend t in
+      t |> Affine.translate_i hud_turn_x hud_turn_y;
+      (* timer text *)
+      (let text = Printf.sprintf "turn %d (%.1fs)"
+                    turn_num
+                    (float_of_int timer_f /. float_of_int fps) in
+       let font = assets.hud_turn in
+       let (mes_w, _) = font |> Font.measure text in
+       cx |> Ctxt.text text
+               ~t ~font ~c:hud_c
+               ~x:(-mes_w / 2) ~y:0);
+      (* timer bar *)
+      (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
+       let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
+       let x1' = x0 + hud_turn_bar_w * timer_f / turn_total_f in
+       cx |> Ctxt.vertices `Strip
+               ~t ~c:hud_c
+               ~xs:[| x0; x1; x1; x0; x0 |]
+               ~ys:[| y0; y0; y1; y1; y0 |];
+       cx |> Ctxt.vertices `Fill
+               ~t ~c:hud_turn_bar_fill_c
+               ~xs:[| x0; x1'; x1'; x0 |]
+               ~ys:[| y0;  y0;  y1; y1 |])
+
+    let render_hud ~t cx v : unit =
+      begin
+        render_hud_bg ~t cx;
+        render_hud_players ~t cx v.assets v.p0 v.p1;
+        render_hud_turn ~t cx v.assets v.turn_num v.turn_timer_f;
+      end
 
     (* -- rendering the map -- *)
 
