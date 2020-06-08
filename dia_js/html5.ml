@@ -77,17 +77,17 @@ module Ctxt = struct
   let size (cx: t) =
     (cx##.canvas##.width, cx##.canvas##.height)
 
-  let clear ~f (cx: t) =
+  let clear ~c (cx: t) =
     let (w, h) = cx |> size in
-    Js.Opt.case f
+    Js.Opt.case c
       (fun () -> cx##clearRect 0. 0. (float_of_int w) (float_of_int h))
-      (fun f -> cx##.fillStyle := f; cx##fillRect 0. 0. (float_of_int w) (float_of_int h))
+      (fun c -> cx##.fillStyle := c; cx##fillRect 0. 0. (float_of_int w) (float_of_int h))
 
-  let text ~x ~y ~font ~f ?t str (cx: t) =
+  let text ~x ~y ~font ~c ?t str (cx: t) =
     cx |> transform t;
-    Js.Opt.iter f
-      (fun f ->
-        cx##.fillStyle := f;
+    Js.Opt.iter c
+      (fun c ->
+        cx##.fillStyle := c;
         cx##.font := font;
         cx##.textAlign := _LEFT;
         cx##.textBaseline := _TOP;
@@ -105,10 +105,11 @@ module Ctxt = struct
     | `Lines           -> (i mod 2) = 0
     | (`Strip | `Loop) -> i = 0
 
-  let lines ~s ~xs ~ys ?t mode (cx: t) =
+  let lines ~xs ~ys ~c ?t mode (cx: t) =
     cx |> transform t;
-    Js.Opt.iter s
-      (fun s ->
+    Js.Opt.iter c
+      (fun c ->
+        cx##.strokeStyle := c;
         cx##beginPath;
         xs |> Array.iteri (fun i x ->
                   let x, y = float_of_int x +. 0.5, float_of_int ys.(i) +. 0.5 in
@@ -116,7 +117,6 @@ module Ctxt = struct
                     cx##moveTo x y
                   else
                     cx##lineTo x y);
-        cx##.strokeStyle := s;
         cx##stroke);
     cx |> reset
 end

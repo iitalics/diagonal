@@ -36,21 +36,21 @@ module type Draw_S = sig
     type t
     val size: t -> int * int
 
-    (** [cx |> clear ~f] clears the display with color [f]. *)
-    val clear: f:Color.t -> t -> unit
+    (** [cx |> clear ~c] fills the entire display with color [c]. *)
+    val clear: c:Color.t -> t -> unit
 
-    (** [cx |> text ~x ~y ~font ~f t] draws text [t] with color [f], font [font] at
+    (** [cx |> text ~x ~y ~font ~c t] draws text [t] with color [c], font [font] at
        position [x, y]. *)
     (* TODO: add transformations *)
-    val text: x:int -> y:int -> font:Font.t -> f:Color.t -> ?t:Affine.t -> string -> t -> unit
+    val text: x:int -> y:int -> font:Font.t -> c:Color.t -> ?t:Affine.t -> string -> t -> unit
 
     (** [cx |> image ~x ~y img] draws image [img] at position [x, y]. *)
     val image: x:int -> y:int -> ?t:Affine.t -> Image.t -> t -> unit
 
-    (** [cx |> lines ~s ~xs ~ys mode] draws lines with color [s], x-coordinates [xs], and
+    (** [cx |> lines ~xs ~ys ~c mode] draws lines with color [c], x-coordinates [xs], and
        y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines
        ([`Lines]) or if each adjacent vertex is connected in order ([`Strip]).  *)
-    val lines: s:Color.t -> xs:int array -> ys:int array -> ?t:Affine.t -> lines -> t -> unit
+    val lines: xs:int array -> ys:int array -> c:Color.t -> ?t:Affine.t -> lines -> t -> unit
   end
 end
 

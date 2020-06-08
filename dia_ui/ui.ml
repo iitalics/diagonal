@@ -64,10 +64,10 @@ module Make_views
 
         (* rendering *)
 
-        let bg_f       = Draw.Color.of_rgb_s "#8df"
-        let title_f    = Draw.Color.of_rgb_s "#000"
-        let item_f     = Draw.Color.of_rgb_s "#fff"
-        let item_hov_f = Draw.Color.of_rgb_s "#064"
+        let bg_c       = Draw.Color.of_rgb_s "#8df"
+        let title_c    = Draw.Color.of_rgb_s "#000"
+        let item_c     = Draw.Color.of_rgb_s "#fff"
+        let item_hov_c = Draw.Color.of_rgb_s "#064"
 
         let title_ypad = 20
         let item_ypad = 8
@@ -81,7 +81,7 @@ module Make_views
           let (mes_w, mes_h) = assets.title_font |> Draw.Font.measure title_text in
           let x, y = (w - mes_w) / 2, (h - mes_h) / 2 in
           cx |> Draw.Ctxt.text title_text
-                  ~x ~y ~f:title_f ~font:assets.title_font;
+                  ~x ~y ~c:title_c ~font:assets.title_font;
           let y = y + mes_h + title_ypad in
           y
 
@@ -90,13 +90,13 @@ module Make_views
           let x = (w - mes_w) / 2 in
           cx |> Draw.Ctxt.text text
                   ~x ~y ~font:assets.item_font
-                  ~f:(if i = hov_i then item_hov_f else item_f);
+                  ~c:(if i = hov_i then item_hov_c else item_c);
           let y = y + mes_h + item_ypad in
           (i + 1, y)
 
         let render cx v =
           let size = cx |> Draw.Ctxt.size in
-          cx |> Draw.Ctxt.clear ~f:bg_f;
+          cx |> Draw.Ctxt.clear ~c:bg_c;
           let y = cx |> render_title v.assets size in
           let y = List.fold_left (render_item v.assets v.hov size cx) (0, y) item_text in
           ignore y

@@ -42,9 +42,9 @@ module Make_loading_view
     type assets = Draw.Font.t
     let assets_rsrc = Rsrc.font ~family:"nunito" ~size:30
 
-    let bg_f = Draw.Color.of_rgb_s "#111111"
+    let bg_c = Draw.Color.of_rgb_s "#111111"
     let loading_text = "Loading..."
-    let loading_f = Draw.Color.of_rgb_s "#eeeeee"
+    let loading_c = Draw.Color.of_rgb_s "#eeeeee"
 
     let render_text cx font =
       let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
@@ -52,10 +52,10 @@ module Make_loading_view
       cx |> Draw.Ctxt.text loading_text
               ~x:((cx_w - mes_w) / 2)
               ~y:((cx_h - mes_h) / 2)
-              ~f:loading_f ~font
+              ~c:loading_c ~font
 
     let render cx assets =
-      cx |> Draw.Ctxt.clear ~f:bg_f;
+      cx |> Draw.Ctxt.clear ~c:bg_c;
       assets |> Option.iter (render_text cx)
   end
 

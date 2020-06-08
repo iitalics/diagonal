@@ -43,8 +43,8 @@ module Make
 
     (*** rendering ***)
 
-    let bg_f   = Draw.Color.of_rgb_s "#5cf"
-    let grid_s = Draw.Color.of_rgb_s "#ccc"
+    let bg_c   = Draw.Color.of_rgb_s "#5cf"
+    let grid_c = Draw.Color.of_rgb_s "#ccc"
 
     (* -- rendering the map -- *)
 
@@ -83,7 +83,7 @@ module Make
     let render_grid ~t cx v =
       ignore v;
       cx |> Draw.Ctxt.lines `Lines
-              ~t ~s:grid_s ~xs:grid_xs ~ys:grid_ys
+              ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
     (* -- rendering players -- *)
 
@@ -108,7 +108,7 @@ module Make
 
     let render cx v =
       let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
-      cx |> Draw.Ctxt.clear ~f:bg_f;
+      cx |> Draw.Ctxt.clear ~c:bg_c;
 
       (* main transform for everything on the map *)
       let map_t = Affine.make None in
