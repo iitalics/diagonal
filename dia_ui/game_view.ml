@@ -133,89 +133,84 @@ module Make
               ~xs:[| 0; hud_w; hud_w; 0     |]
               ~ys:[| 0; 0;     hud_h; hud_h |]
 
-    let render_hud_players ~t cx assets p0 p1 =
-      let p_name p i =
-        let font = assets.hud_p_name in
-        let (mes_w, _) = font |> Font.measure p.name in
+    let render_hud_player ~t cx assets p i =
+      (* player name *)
+      (let font = assets.hud_p_name in
+       let (mes_w, _) = font |> Font.measure p.name in
+       let t = Affine.extend t in
+       t |> Affine.translate_i
+              ((1 - i) * hud_left
+               +     i * (hud_w - hud_left))
+              hud_top;
+       cx |> Ctxt.text p.name ~t ~c:hud_c ~font
+               ~x:(i * -mes_w)
+               ~y:0);
+
+      (* hp bar *)
+      (let t = Affine.extend t in
+       t |> Affine.translate_i
+              ((1 - i) * hud_left
+               +     i * (hud_w - hud_hpbar_w - hud_left))
+              hud_hpbar_y;
+       let w  = hud_hpbar_w in
+       let w' = hud_hpbar_w * p.hp / max_hp in
+       let h  = hud_hpbar_h in
+       cx |> Ctxt.vertices `Fill
+               ~t ~c:hud_hpbar_fill_c.(i)
+               ~xs:[| 0; w'; w'; 0 |]
+               ~ys:[| 0; 0; h; h |];
+       cx |> Ctxt.vertices `Strip
+               ~t ~c:hud_c
+               ~xs:[| 0; w; w; 0; 0 |]
+               ~ys:[| 0; 0; h; h; 0 |]);
+
+      (* items *)
+      (let t = Affine.extend t in
+       t |> Affine.translate_i
+              ((1 - i) * hud_item_x
+               +     i * (hud_w - hud_item_x))
+              hud_item_y;
+
+       (* primary item *)
+       (let item = p.item in
         let t = Affine.extend t in
-        t |> Affine.translate_i
-               ((1 - i) * hud_left
-                +     i * (hud_w - hud_left))
-               hud_top;
-        cx |> Ctxt.text p.name ~t ~c:hud_c ~font
-                ~x:(i * -mes_w)
-                ~y:0
-      in
+        t |> Affine.scale
+               hud_item_scale hud_item_scale;
+        cx |> Ctxt.image (assets |> item_icon_img item) ~t
+                ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
 
-      let hp_bar p i =
-        let t = Affine.extend t in
-        t |> Affine.translate_i
-               ((1 - i) * hud_left
-                +     i * (hud_w - hud_hpbar_w - hud_left))
-               hud_hpbar_y;
-        let w  = hud_hpbar_w in
-        let w' = hud_hpbar_w * p.hp / max_hp in
-        let h  = hud_hpbar_h in
-        cx |> Ctxt.vertices `Fill
-                ~t ~c:hud_hpbar_fill_c.(i)
-                ~xs:[| 0; w'; w'; 0 |]
-                ~ys:[| 0; 0; h; h |];
-        cx |> Ctxt.vertices `Strip
-                ~t ~c:hud_c
-                ~xs:[| 0; w; w; 0; 0 |]
-                ~ys:[| 0; 0; h; h; 0 |]
-      in
+       (* active item text *)
+       (let font = assets.hud_act_item in
+        let (mes_w, _) = font |> Font.measure hud_item_act_text in
+        cx |> Ctxt.text hud_item_act_text
+                ~t ~font ~c:hud_item_act_text_c
+                ~x:(-mes_w / 2)
+                ~y:hud_item_act_text_dy);
 
-      let items p i =
-        let t = Affine.extend t in
-        t |> Affine.translate_i
-               ((1 - i) * hud_item_x
-                +     i * (hud_w - hud_item_x))
-               hud_item_y;
+       (* alt item *)
+       p.alt_item |>
+         Option.iter (fun item ->
+             let t = Affine.extend t in
+             t |> Affine.translate_i
+                    ((1 - 2 * i) * hud_item_alt_dx)
+                    hud_item_alt_dy;
+             t |> Affine.scale
+                    hud_item_alt_scale hud_item_alt_scale;
+             cx |> Ctxt.image (assets |> item_icon_img item) ~t
+                     ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
 
-        (* primary item *)
-        (let item = p.item in
-         let t = Affine.extend t in
-         t |> Affine.scale
-                hud_item_scale hud_item_scale;
-         cx |> Ctxt.image (assets |> item_icon_img item) ~t
-                 ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
-
-        (* active item text *)
-        (let font = assets.hud_act_item in
-         let (mes_w, _) = font |> Font.measure hud_item_act_text in
-         cx |> Ctxt.text hud_item_act_text
-                 ~t ~font ~c:hud_item_act_text_c
-                 ~x:(-mes_w / 2)
-                 ~y:hud_item_act_text_dy);
-
-        (* alt item text *)
-        (let font = assets.hud_act_item in
-         let (mes_w, _) = font |> Font.measure hud_item_alt_text in
-         cx |> Ctxt.text hud_item_alt_text
-                 ~t ~font ~c:hud_item_alt_text_c
-                 ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
-                 ~y:(hud_item_alt_text_dy));
-
-        (* alt item *)
-        p.alt_item |>
-          Option.iter (fun item ->
-              let t = Affine.extend t in
-              t |> Affine.translate_i
-                     ((1 - 2 * i) * hud_item_alt_dx)
-                     hud_item_alt_dy;
-              t |> Affine.scale
-                     hud_item_alt_scale hud_item_alt_scale;
-              cx |> Ctxt.image (assets |> item_icon_img item) ~t
-                      ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
-      in
-
-      p_name p0 0; hp_bar p0 0; items p0 0;
-      p_name p1 1; hp_bar p1 1; items p1 1
+       (* alt item text *)
+       (let font = assets.hud_act_item in
+        let (mes_w, _) = font |> Font.measure hud_item_alt_text in
+        cx |> Ctxt.text hud_item_alt_text
+                ~t ~font ~c:hud_item_alt_text_c
+                ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
+                ~y:(hud_item_alt_text_dy)))
 
     let render_hud_turn ~t cx assets turn_num timer_f =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
+
       (* timer text *)
       (let text = Printf.sprintf "turn %d (%.1fs)"
                     turn_num
@@ -225,23 +220,25 @@ module Make
        cx |> Ctxt.text text
                ~t ~font ~c:hud_c
                ~x:(-mes_w / 2) ~y:0);
+
       (* timer bar *)
       (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
        let x1' = x0 + hud_turn_bar_w * timer_f / turn_total_f in
-       cx |> Ctxt.vertices `Strip
-               ~t ~c:hud_c
-               ~xs:[| x0; x1; x1; x0; x0 |]
-               ~ys:[| y0; y0; y1; y1; y0 |];
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]
-               ~ys:[| y0;  y0;  y1; y1 |])
+               ~ys:[| y0;  y0;  y1; y1 |];
+       cx |> Ctxt.vertices `Strip
+               ~t ~c:hud_c
+               ~xs:[| x0; x1; x1; x0; x0 |]
+               ~ys:[| y0; y0; y1; y1; y0 |])
 
     let render_hud ~t cx v : unit =
       begin
         render_hud_bg ~t cx;
-        render_hud_players ~t cx v.assets v.p0 v.p1;
+        render_hud_player ~t cx v.assets v.p0 0;
+        render_hud_player ~t cx v.assets v.p1 1;
         render_hud_turn ~t cx v.assets v.turn_num v.turn_timer_f;
       end
 
