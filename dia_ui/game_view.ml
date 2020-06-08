@@ -28,14 +28,24 @@ module Make
     type assets =
       { sprites: Image.t;
         map:     Image.t;
-        hud_pname: Font.t }
+        hud_p_name: Font.t }
 
     let assets_rsrc =
-      Rsrc.(map2 (fun [ sprites; map ] [ hud_pname ] -> { sprites; map; hud_pname })
-              (all [ image ~path:"sprites";
-                     image ~path:"map_stone" ])
-              (all [ font ~family:"space_mono" ~size:24 ]))
-        [@@ocaml.warning "-8"]
+      let images =
+        Rsrc.(all [ image ~path:"sprites";
+                    image ~path:"map_stone" ])
+      in
+      let fonts =
+        Rsrc.(all [ font ~family:"space_mono" ~size:24 ])
+      in
+      Rsrc.map2
+        (fun[@ocaml.warning "-8"]
+            [ sprites; map ]
+            [ hud_p_name ]
+         ->
+          { sprites; map; hud_p_name })
+        images
+        fonts
 
     (*** init ***)
 
@@ -109,9 +119,9 @@ module Make
               ~ys:[| 0; 0;     hud_h; hud_h |]
 
     let render_hud_players ~t cx assets p0 p1 =
-      let font = assets.hud_pname in
+      let font = assets.hud_p_name in
 
-      let pname p i =
+      let p_name p i =
         let (mes_w, _) = font |> Font.measure p.name in
         let t = Affine.extend t in
         t |> Affine.translate_i
@@ -168,8 +178,8 @@ module Make
                       ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
       in
 
-      pname p0 0; hp_bar p0 0; items p0 0;
-      pname p1 1; hp_bar p1 1; items p1 1
+      p_name p0 0; hp_bar p0 0; items p0 0;
+      p_name p1 1; hp_bar p1 1; items p1 1
 
     let render_hud ~t cx v =
       render_hud_bg ~t cx;
