@@ -34,7 +34,7 @@ module Make
       Rsrc.(map2 (fun [ sprites; map ] [ hud_pname ] -> { sprites; map; hud_pname })
               (all [ image ~path:"sprites";
                      image ~path:"map_stone" ])
-              (all [ font ~family:"space_mono" ~size:30 ]))
+              (all [ font ~family:"space_mono" ~size:24 ]))
         [@@ocaml.warning "-8"]
 
     (*** init ***)
@@ -67,13 +67,16 @@ module Make
 
     (* -- rendering the HUD -- *)
 
-    let hud_c  = Color.of_rgb_s "#fff"
-    let hud_c' = Color.of_rgb_s "#000"
+    let hud_bg_c = Color.of_rgb_s "#000" |> Color.with_alpha 0.5
+    let hud_c    = Color.of_rgb_s "#fff"
     let hud_w = 800
+    let hud_h = 68
+    let hud_y = 12
+    let hud_left = 9
     let hud_top = 8
     let hud_hpbar_fill_c = Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
-    let hud_hpbar_y = 42
-    let hud_hpbar_w = 380
+    let hud_hpbar_y = 36
+    let hud_hpbar_w = 386
     let hud_hpbar_h = 20
 
     (* TODO:
@@ -83,16 +86,21 @@ module Make
        [ ] turn timer
      *)
 
+    let render_hud_bg ~t cx =
+      cx |> Ctxt.vertices `Fill
+              ~t ~c:hud_bg_c
+              ~xs:[| 0; hud_w; hud_w; 0     |]
+              ~ys:[| 0; 0;     hud_h; hud_h |]
+
     let render_hud_players ~t cx assets p0 p1 =
       let font = assets.hud_pname in
       let pname p i =
         let (mes_w, _) = font |> Font.measure p.name in
-        let x, y = i * (hud_w - mes_w), hud_top in
-        cx |> Ctxt.text p.name ~t ~c:hud_c' ~font ~x:(x + 1) ~y:(y + 1);
-        cx |> Ctxt.text p.name ~t ~c:hud_c  ~font ~x         ~y
+        let x, y = hud_left + i * (hud_w - mes_w - hud_left * 2), hud_top in
+        cx |> Ctxt.text p.name ~t ~c:hud_c ~font ~x ~y
       in
       let hp_bar p i =
-        let x0 = i * (hud_w - hud_hpbar_w) in
+        let x0 = hud_left + i * (hud_w - hud_hpbar_w - hud_left * 2) in
         let x1 = x0 + hud_hpbar_w in
         let x1' = x0 + hud_hpbar_w * p.hp / max_hp in
         let y0 = hud_hpbar_y in
@@ -110,6 +118,7 @@ module Make
       pname p1 1; hp_bar p1 1
 
     let render_hud ~t cx v =
+      render_hud_bg ~t cx;
       render_hud_players ~t cx v.assets v.p0 v.p1
 
     (* -- rendering the map -- *)
@@ -188,7 +197,7 @@ module Make
       let hud_t = Affine.make None in
       hud_t |> Affine.translate
                  ((cx_w - hud_w) / 2 |> float_of_int)
-                 0.;
+                 (float_of_int hud_y);
 
       (* draw stuff *)
       begin
