@@ -1,6 +1,8 @@
-
 type 'a f6_fn = float -> float -> float -> float -> float -> float -> 'a
 type 'a f2_fn = float -> float -> 'a
+type 'a f1_fn = float -> 'a
+type 'a i2_fn = int -> int -> 'a
+type 'a i1_fn = int -> 'a
 
 type t =
   { mutable m11: float; mutable m12: float; mutable m13: float;
@@ -59,6 +61,12 @@ let[@ocaml.inline] rotate r t =
   t |> transform
          cs (-. sn) 0.
          sn      cs 0.
+
+let[@ocaml.inline] translate_i dx dy t =
+  t |> translate (float_of_int dx) (float_of_int dy)
+
+let rotate_deg _r _t =
+  failwith "Affine.rotate_deg: unimplemented"
 
 let[@ocaml.inline] apply x y t =
   (x *. t.m11 +. y *. t.m12 +. t.m13,
