@@ -1,7 +1,8 @@
 (rule
  (targets
    nunito.ttf
-   roundor.otf)
+   roundor.otf
+   space_mono.ttf)
  (deps ../../assets_src/download.sh)
  (action (system ". ../../assets_src/download.sh")))
 

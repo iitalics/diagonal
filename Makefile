@@ -9,6 +9,7 @@ STATIC = $(wildcard dia_js/*.html dia_js/*.css)
 RES    =				\
 		dia_js/res/roundor.otf	\
 		dia_js/res/nunito.ttf	\
+		dia_js/res/space_mono.ttf	\
 		dia_js/res/sprites.png	\
 		dia_js/res/map_stone.png
 

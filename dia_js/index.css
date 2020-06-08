@@ -11,3 +11,8 @@ body {
     font-family: 'nunito';
     src: url('res/nunito.ttf') format('truetype');
 }
+
+@font-face {
+    font-family: 'space_mono';
+    src: url('res/space_mono.ttf') format('truetype');
+}
