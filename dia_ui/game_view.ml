@@ -21,12 +21,14 @@ module Make
       include Util.Applicative(Rsrc)
     end
 
+    open Draw
+
     (*** assets ***)
 
     type assets =
-      { sprites: Draw.Image.t;
-        map:     Draw.Image.t;
-        hud_pname: Draw.Font.t }
+      { sprites: Image.t;
+        map:     Image.t;
+        hud_pname: Font.t }
 
     let assets_rsrc =
       Rsrc.(map2 (fun [ sprites; map ] [ hud_pname ] -> { sprites; map; hud_pname })
@@ -61,15 +63,15 @@ module Make
 
     (*** rendering ***)
 
-    let bg_c   = Draw.Color.of_rgb_s "#5cf"
+    let bg_c   = Color.of_rgb_s "#5cf"
 
     (* -- rendering the HUD -- *)
 
-    let hud_c  = Draw.Color.of_rgb_s "#fff"
-    let hud_c' = Draw.Color.of_rgb_s "#000"
+    let hud_c  = Color.of_rgb_s "#fff"
+    let hud_c' = Color.of_rgb_s "#000"
     let hud_w = 800
     let hud_top = 8
-    let hud_hpbar_fill_c = Draw.Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
+    let hud_hpbar_fill_c = Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
     let hud_hpbar_y = 42
     let hud_hpbar_w = 380
     let hud_hpbar_h = 20
@@ -84,10 +86,10 @@ module Make
     let render_hud_players ~t cx assets p0 p1 =
       let font = assets.hud_pname in
       let pname p i =
-        let (mes_w, _) = font |> Draw.Font.measure p.name in
+        let (mes_w, _) = font |> Font.measure p.name in
         let x, y = i * (hud_w - mes_w), hud_top in
-        cx |> Draw.Ctxt.text p.name ~t ~c:hud_c' ~font ~x:(x + 1) ~y:(y + 1);
-        cx |> Draw.Ctxt.text p.name ~t ~c:hud_c  ~font ~x         ~y
+        cx |> Ctxt.text p.name ~t ~c:hud_c' ~font ~x:(x + 1) ~y:(y + 1);
+        cx |> Ctxt.text p.name ~t ~c:hud_c  ~font ~x         ~y
       in
       let hp_bar p i =
         let x0 = i * (hud_w - hud_hpbar_w) in
@@ -95,11 +97,11 @@ module Make
         let x1' = x0 + hud_hpbar_w * p.hp / max_hp in
         let y0 = hud_hpbar_y in
         let y1 = y0 + hud_hpbar_h in
-        cx |> Draw.Ctxt.vertices `Fill
+        cx |> Ctxt.vertices `Fill
                 ~t ~c:hud_hpbar_fill_c.(i)
                 ~xs:[| x0; x1'; x1'; x0 |]
                 ~ys:[| y0; y0; y1; y1 |];
-        cx |> Draw.Ctxt.vertices `Strip
+        cx |> Ctxt.vertices `Strip
                 ~t ~c:hud_c
                 ~xs:[| x0; x1; x1; x0; x0 |]
                 ~ys:[| y0; y0; y1; y1; y0 |]
@@ -112,7 +114,7 @@ module Make
 
     (* -- rendering the map -- *)
 
-    let grid_c = Draw.Color.of_rgb_s "#ccc"
+    let grid_c = Color.of_rgb_s "#ccc"
 
     let cell_w = 64
     let cells = 8
@@ -120,10 +122,10 @@ module Make
 
     let map_img_ox, map_img_oy = 64, 64
     let map_img assets =
-      assets.map |> Draw.Image.clip ~x:0 ~y:0 ~w:640 ~h:640
+      assets.map |> Image.clip ~x:0 ~y:0 ~w:640 ~h:640
 
     let render_map ~t cx v =
-      cx |> Draw.Ctxt.image (v.assets |> map_img)
+      cx |> Ctxt.image (v.assets |> map_img)
               ~t ~x:(- map_img_ox) ~y:(- map_img_oy)
 
     let grid_xs, grid_ys =
@@ -148,13 +150,13 @@ module Make
 
     let render_grid ~t cx v =
       ignore v;
-      cx |> Draw.Ctxt.vertices `Lines
+      cx |> Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
     (* -- rendering players -- *)
 
     let blob_img ~color ~face assets =
-      assets.sprites |> Draw.Image.clip
+      assets.sprites |> Image.clip
                           ~x:(0 + 64 * face)
                           ~y:(0 + 64 * color)
                           ~w:64 ~h:64
@@ -164,7 +166,7 @@ module Make
       t |> Affine.translate
              (float_of_int ((i mod 8) * 64))
              (float_of_int ((i   / 8) * 64));
-      cx |> Draw.Ctxt.image
+      cx |> Ctxt.image
               (v.assets |> blob_img
                              ~color:(i mod 4)
                              ~face:(i mod 5))
@@ -173,8 +175,8 @@ module Make
     (* -- main entry point -- *)
 
     let render cx v =
-      let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
-      cx |> Draw.Ctxt.clear ~c:bg_c;
+      let (cx_w, cx_h) = cx |> Ctxt.size in
+      cx |> Ctxt.clear ~c:bg_c;
 
       (* transform for everything on the map *)
       let map_t = Affine.make None in
