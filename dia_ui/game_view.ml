@@ -57,16 +57,24 @@ module Make
       { assets: assets;
         p0: player;
         p1: player;
+        items: item list;
         turn_num: int;
         turn_timer_f: int  }
 
     and player =
-      { name: string;
+      { color: int;
+        face: int;
+        p_pos: int * int;
+        name: string;
         hp: int;
-        item: item;
-        alt_item: item option }
+        item: item_type;
+        alt_item: item_type option }
 
-    and item = [ `S | `F | `P | `H ]
+    and item =
+      { it_type: item_type;
+        it_pos: int * int }
+
+    and item_type = [ `S | `F | `P | `H ]
 
     let max_hp = 16
     let fps = 60
@@ -75,8 +83,20 @@ module Make
     type init = unit
     let make assets _init =
       { assets;
-        p0 = { name = "Player One"; hp = 16; item = `S; alt_item = Some `P };
-        p1 = { name = "Player Two"; hp = 4;  item = `F; alt_item = Some `S };
+        p0 = { color = 0; face = 0;
+               name = "Player One";
+               hp = 16;
+               item = `S;
+               alt_item = None;
+               p_pos = (0, 0) };
+        p1 = { color = 1; face = 2;
+               name = "Player Two";
+               hp = 4;
+               item = `F;
+               alt_item = Some `S;
+               p_pos = (6, 2) };
+        items = [ { it_type = `P;
+                    it_pos = (3,3) } ];
         turn_num = 3;
         turn_timer_f = 160 }
 
@@ -121,8 +141,8 @@ module Make
     let hud_turn_bar_dy = 20
     let hud_turn_bar_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.6)
 
-    let item_icon_img (it: item) assets =
-      let row = match it with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
+    let item_icon_img ty assets =
+      let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
       assets.sprites |> Image.clip ~x:384 ~y:(row * 64) ~w:64 ~h:64
 
     let item_icon_w = 64
@@ -284,7 +304,7 @@ module Make
       cx |> Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
-    (* -- rendering players -- *)
+    (* -- rendering map elements (players, items) -- *)
 
     let blob_img ~color ~face assets =
       assets.sprites |> Image.clip
@@ -292,16 +312,30 @@ module Make
                           ~y:(0 + 64 * color)
                           ~w:64 ~h:64
 
-    let render_blob ~t ~i cx v =
+    let item_img = item_icon_img
+
+    let render_player ~t cx assets p =
+      let { color; face; p_pos = (col, row); _ } = p in
       let t = Affine.extend t in
-      t |> Affine.translate
-             (float_of_int ((i mod 8) * 64))
-             (float_of_int ((i   / 8) * 64));
-      cx |> Ctxt.image
-              (v.assets |> blob_img
-                             ~color:(i mod 4)
-                             ~face:(i mod 5))
+      t |> Affine.translate_i
+             (col * cell_w)
+             (row * cell_w);
+      cx |> Ctxt.image (assets |> blob_img ~color ~face)
               ~t ~x:0 ~y:0
+
+    let render_item ~t cx assets it =
+      let { it_type = ty; it_pos = (col, row) } = it in
+      let t = Affine.extend t in
+      t |> Affine.translate_i
+             (col * cell_w)
+             (row * cell_w);
+      cx |> Ctxt.image (assets |> item_img ty)
+              ~t ~x:0 ~y:0
+
+    let render_map_elements ~t cx v =
+      render_player ~t cx v.assets v.p0;
+      render_player ~t cx v.assets v.p1;
+      List.iter (render_item ~t cx v.assets) v.items
 
     (* -- main entry point -- *)
 
@@ -324,8 +358,8 @@ module Make
       (* draw stuff *)
       begin
         v |> render_map ~t:map_t cx;
-        for i = 0 to 3 do v |> render_blob ~t:map_t ~i cx done;
         v |> render_grid ~t:map_t cx;
+        v |> render_map_elements ~t:map_t cx;
         v |> render_hud ~t:hud_t cx;
       end
   end
