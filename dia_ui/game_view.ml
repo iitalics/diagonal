@@ -28,7 +28,8 @@ module Make
     type assets =
       { sprites: Image.t;
         map:     Image.t;
-        hud_p_name: Font.t }
+        hud_p_name:   Font.t;
+        hud_act_item: Font.t }
 
     let assets_rsrc =
       let images =
@@ -36,14 +37,15 @@ module Make
                     image ~path:"map_stone" ])
       in
       let fonts =
-        Rsrc.(all [ font ~family:"space_mono" ~size:24 ])
+        Rsrc.(all [ font ~family:"space_mono" ~size:24;
+                    font ~family:"space_mono" ~size:15 ])
       in
       Rsrc.map2
         (fun[@ocaml.warning "-8"]
             [ sprites; map ]
-            [ hud_p_name ]
+            [ hud_p_name; hud_act_item ]
          ->
-          { sprites; map; hud_p_name })
+          { sprites; map; hud_p_name; hud_act_item })
         images
         fonts
 
@@ -84,7 +86,7 @@ module Make
     let hud_bg_c = Color.of_rgb_s "#000" |> Color.with_alpha 0.5
     let hud_c    = Color.of_rgb_s "#fff"
     let hud_w = 800
-    let hud_h = 114
+    let hud_h = 128
     let hud_y = 12
     let hud_left = 9
     let hud_top = 8
@@ -92,12 +94,18 @@ module Make
     let hud_hpbar_y = 36
     let hud_hpbar_w = 386
     let hud_hpbar_h = 20
-    let hud_item_x  = 32
+    let hud_item_x  = 56 (* 32 *)
     let hud_item_y  = 84
     let hud_item_scale = 0.8
-    let hud_item_alt_dx = 60
+    let hud_item_alt_dx = 110 (* 80 *)
     let hud_item_alt_dy = 0
     let hud_item_alt_scale = 0.65
+    let hud_item_act_text = "active item"
+    let hud_item_act_text_c = Color.of_rgb_s "#ff0"
+    let hud_item_act_text_dy = 24
+    let hud_item_alt_text = "secondary"
+    let hud_item_alt_text_c = Color.of_rgb_s "#111"
+    let hud_item_alt_text_dy = 20
 
     let item_icon_img (it: item) assets =
       let row = match it with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
@@ -119,16 +127,17 @@ module Make
               ~ys:[| 0; 0;     hud_h; hud_h |]
 
     let render_hud_players ~t cx assets p0 p1 =
-      let font = assets.hud_p_name in
-
       let p_name p i =
+        let font = assets.hud_p_name in
         let (mes_w, _) = font |> Font.measure p.name in
         let t = Affine.extend t in
         t |> Affine.translate_i
                ((1 - i) * hud_left
-                +     i * (hud_w - mes_w - hud_left))
+                +     i * (hud_w - hud_left))
                hud_top;
-        cx |> Ctxt.text p.name ~t ~c:hud_c ~font ~x:0 ~y:0
+        cx |> Ctxt.text p.name ~t ~c:hud_c ~font
+                ~x:(i * -mes_w)
+                ~y:0
       in
 
       let hp_bar p i =
@@ -165,12 +174,28 @@ module Make
          cx |> Ctxt.image (assets |> item_icon_img item) ~t
                  ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
 
+        (* active item text *)
+        (let font = assets.hud_act_item in
+         let (mes_w, _) = font |> Font.measure hud_item_act_text in
+         cx |> Ctxt.text hud_item_act_text
+                 ~t ~font ~c:hud_item_act_text_c
+                 ~x:(-mes_w / 2)
+                 ~y:hud_item_act_text_dy);
+
+        (* alt item text *)
+        (let font = assets.hud_act_item in
+         let (mes_w, _) = font |> Font.measure hud_item_alt_text in
+         cx |> Ctxt.text hud_item_alt_text
+                 ~t ~font ~c:hud_item_alt_text_c
+                 ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
+                 ~y:(hud_item_alt_text_dy));
+
         (* alt item *)
         p.alt_item |>
           Option.iter (fun item ->
               let t = Affine.extend t in
               t |> Affine.translate_i
-                     (hud_item_alt_dx * (1 - 2 * i))
+                     ((1 - 2 * i) * hud_item_alt_dx)
                      hud_item_alt_dy;
               t |> Affine.scale
                      hud_item_alt_scale hud_item_alt_scale;
