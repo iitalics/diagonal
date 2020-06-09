@@ -53,8 +53,12 @@ module Make
 
     (*** init ***)
 
+    type pos = int * int
+    type item_type = [ `S | `F | `P | `H ]
+
     type t =
       { assets: assets;
+        cursor: pos option;
         p0: player;
         p1: player;
         items: item list;
@@ -64,7 +68,7 @@ module Make
     and player =
       { color: int;
         face: int;
-        p_pos: int * int;
+        p_pos: pos;
         name: string;
         hp: int;
         item: item_type;
@@ -72,9 +76,7 @@ module Make
 
     and item =
       { it_type: item_type;
-        it_pos: int * int }
-
-    and item_type = [ `S | `F | `P | `H ]
+        it_pos: pos }
 
     let max_hp = 16
     let fps = 60
@@ -83,6 +85,7 @@ module Make
     type init = unit
     let make assets _init =
       { assets;
+        cursor = Some(4, 1);
         p0 = { color = 0; face = 0;
                name = "Player One";
                hp = 16;
@@ -299,10 +302,45 @@ module Make
                                else if i < 226 then inner3 (i - 128)
                                else                 inner1 (i - 226))
 
-    let render_grid ~t cx v =
-      ignore v;
+    let render_grid ~t cx =
       cx |> Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
+
+    let cursor_c = Color.of_rgb_s "#fff"
+    let cursor_coords =
+      let a, b, c = 8, 26, 29 in
+      let elbow i =
+        let x = i mod 2 in
+        let y = i   / 2 in
+        let dx = x * 2 - 1 in
+        let dy = y * 2 - 1 in
+        (*
+           c 0-------------1
+             |             |
+           b 5--------4    |
+                      |    |
+                      |    |
+                      |    |
+           a          3----2
+             a        b    c
+         *)
+        [| x+a*dx; x+c*dx; x+c*dx; x+b*dx; x+b*dx; x+a*dx |],
+        [| y+c*dy; y+c*dy; y+a*dy; y+a*dy; y+b*dy; y+b*dy |]
+      in
+      Array.init 4 elbow
+
+    let render_cursor ~t cx (col, row) =
+      let t = Affine.extend t in
+      t |> Affine.translate_i
+             (col * cell_w + cell_w / 2)
+             (row * cell_w + cell_w / 2);
+      cursor_coords |> Array.iter
+                         (fun (xs, ys) ->
+                           cx |> Ctxt.vertices `Fill ~t ~c:cursor_c ~xs ~ys)
+
+    let render_grid_elements ~t cx v =
+      render_grid ~t cx;
+      Option.iter (render_cursor ~t cx) v.cursor
 
     (* -- rendering map elements (players, items) -- *)
 
@@ -317,18 +355,14 @@ module Make
     let render_player ~t cx assets p =
       let { color; face; p_pos = (col, row); _ } = p in
       let t = Affine.extend t in
-      t |> Affine.translate_i
-             (col * cell_w)
-             (row * cell_w);
+      t |> Affine.translate_i (col * cell_w) (row * cell_w);
       cx |> Ctxt.image (assets |> blob_img ~color ~face)
               ~t ~x:0 ~y:0
 
     let render_item ~t cx assets it =
       let { it_type = ty; it_pos = (col, row) } = it in
       let t = Affine.extend t in
-      t |> Affine.translate_i
-             (col * cell_w)
-             (row * cell_w);
+      t |> Affine.translate_i (col * cell_w) (row * cell_w);
       cx |> Ctxt.image (assets |> item_img ty)
               ~t ~x:0 ~y:0
 
@@ -358,7 +392,7 @@ module Make
       (* draw stuff *)
       begin
         v |> render_map ~t:map_t cx;
-        v |> render_grid ~t:map_t cx;
+        v |> render_grid_elements ~t:map_t cx;
         v |> render_map_elements ~t:map_t cx;
         v |> render_hud ~t:hud_t cx;
       end
