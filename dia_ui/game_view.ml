@@ -156,7 +156,7 @@ module Make
               ~xs:[| 0; hud_w; hud_w; 0     |]
               ~ys:[| 0; 0;     hud_h; hud_h |]
 
-    let render_hud_player ~t cx assets i
+    let render_hud_player ~assets ~t cx i
           { pl_name; pl_hp; pl_item; pl_alt_item; _ }
       =
       (* player name *)
@@ -232,7 +232,7 @@ module Make
                       ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
                       ~y:(hud_item_alt_text_dy))))
 
-    let render_hud_turn ~t cx assets turn_num timer_f =
+    let render_hud_turn ~assets ~t cx turn_num timer_f =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
@@ -259,12 +259,14 @@ module Make
                ~xs:[| x0; x1; x1; x0; x0 |]
                ~ys:[| y0; y0; y1; y1; y0 |])
 
-    let render_hud ~t cx v : unit =
+    let render_hud ~t cx
+          { assets; p0; p1; turn_num; turn_timer_f; _ }
+      =
       begin
         render_hud_bg ~t cx;
-        render_hud_player ~t cx v.assets 0 v.p0;
-        render_hud_player ~t cx v.assets 1 v.p1;
-        render_hud_turn ~t cx v.assets v.turn_num v.turn_timer_f;
+        render_hud_player ~assets ~t cx 0 p0;
+        render_hud_player ~assets ~t cx 1 p1;
+        render_hud_turn ~assets ~t cx turn_num turn_timer_f;
       end
 
     (* -- rendering the map -- *)
@@ -286,8 +288,10 @@ module Make
     let map_img assets =
       assets.map |> Image.clip ~x:0 ~y:0 ~w:640 ~h:640
 
-    let render_map ~t cx v =
-      cx |> Ctxt.image (v.assets |> map_img)
+    let render_map ~t cx
+          { assets; _ }
+      =
+      cx |> Ctxt.image (assets |> map_img)
               ~t ~x:(- map_img_ox) ~y:(- map_img_oy)
 
     let grid_xs, grid_ys =
@@ -365,7 +369,7 @@ module Make
 
     let item_img = item_icon_img
 
-    let render_player ~t cx assets
+    let render_player ~assets ~t cx
           { pl_color; pl_face; pl_pos; _ }
       =
       let t = Affine.extend t in
@@ -373,7 +377,7 @@ module Make
       cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
               ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
 
-    let render_item ~t cx assets
+    let render_item ~assets ~t cx
           { it_type; it_pos }
       =
       let t = Affine.extend t in
@@ -381,10 +385,12 @@ module Make
       cx |> Ctxt.image (assets |> item_img it_type)
               ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
 
-    let render_map_elements ~t cx v =
-      render_player ~t cx v.assets v.p0;
-      render_player ~t cx v.assets v.p1;
-      List.iter (render_item ~t cx v.assets) v.items
+    let render_map_elements ~t cx
+          { assets; p0; p1; items; _ }
+      =
+      render_player ~assets ~t cx p0;
+      render_player ~assets ~t cx p1;
+      List.iter (render_item ~assets ~t cx) items
 
     (* -- main entry point -- *)
 
