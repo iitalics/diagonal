@@ -66,13 +66,13 @@ module Make
         turn_timer_f: int  }
 
     and player =
-      { color: int;
-        face: int;
-        p_pos: pos;
-        name: string;
-        hp: int;
-        item: item_type;
-        alt_item: item_type option }
+      { pl_color: int;
+        pl_face: int;
+        pl_pos: pos;
+        pl_name: string;
+        pl_hp: int;
+        pl_item: item_type;
+        pl_alt_item: item_type option }
 
     and item =
       { it_type: item_type;
@@ -85,19 +85,19 @@ module Make
     type init = unit
     let make assets _init =
       { assets;
-        cursor = Some(4, 1);
-        p0 = { color = 0; face = 0;
-               name = "Player One";
-               hp = 16;
-               item = `S;
-               alt_item = None;
-               p_pos = (0, 0) };
-        p1 = { color = 1; face = 2;
-               name = "Player Two";
-               hp = 4;
-               item = `F;
-               alt_item = Some `S;
-               p_pos = (6, 2) };
+        cursor = Some(4, 2);
+        p0 = { pl_color = 0; pl_face = 0;
+               pl_name = "Player One";
+               pl_hp = 16;
+               pl_item = `S;
+               pl_alt_item = None;
+               pl_pos = (0, 0) };
+        p1 = { pl_color = 1; pl_face = 2;
+               pl_name = "Player Two";
+               pl_hp = 4;
+               pl_item = `F;
+               pl_alt_item = Some `S;
+               pl_pos = (6, 2) };
         items = [ { it_type = `P;
                     it_pos = (3,3) } ];
         turn_num = 3;
@@ -156,16 +156,18 @@ module Make
               ~xs:[| 0; hud_w; hud_w; 0     |]
               ~ys:[| 0; 0;     hud_h; hud_h |]
 
-    let render_hud_player ~t cx assets p i =
+    let render_hud_player ~t cx assets i
+          { pl_name; pl_hp; pl_item; pl_alt_item; _ }
+      =
       (* player name *)
       (let font = assets.hud_p_name in
-       let (mes_w, _) = font |> Font.measure p.name in
+       let (mes_w, _) = font |> Font.measure pl_name in
        let t = Affine.extend t in
        t |> Affine.translate_i
               ((1 - i) * hud_left
                +     i * (hud_w - hud_left))
               hud_top;
-       cx |> Ctxt.text p.name ~t ~c:hud_c ~font
+       cx |> Ctxt.text pl_name ~t ~c:hud_c ~font
                ~x:(i * -mes_w)
                ~y:0);
 
@@ -176,7 +178,7 @@ module Make
                +     i * (hud_w - hud_hpbar_w - hud_left))
               hud_hpbar_y;
        let w  = hud_hpbar_w in
-       let w' = hud_hpbar_w * p.hp / max_hp in
+       let w' = hud_hpbar_w * pl_hp / max_hp in
        let h  = hud_hpbar_h in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_hpbar_fill_c.(i)
@@ -195,7 +197,7 @@ module Make
               hud_item_y;
 
        (* primary item *)
-       (let item = p.item in
+       (let item = pl_item in
         let t = Affine.extend t in
         t |> Affine.scale
                hud_item_scale hud_item_scale;
@@ -210,7 +212,7 @@ module Make
                 ~x:(-mes_w / 2)
                 ~y:hud_item_act_text_dy);
 
-       p.alt_item |>
+       pl_alt_item |>
          Option.iter (fun item ->
              (* alt item *)
              (let t = Affine.extend t in
@@ -260,12 +262,18 @@ module Make
     let render_hud ~t cx v : unit =
       begin
         render_hud_bg ~t cx;
-        render_hud_player ~t cx v.assets v.p0 0;
-        render_hud_player ~t cx v.assets v.p1 1;
+        render_hud_player ~t cx v.assets 0 v.p0;
+        render_hud_player ~t cx v.assets 1 v.p1;
         render_hud_turn ~t cx v.assets v.turn_num v.turn_timer_f;
       end
 
     (* -- rendering the map -- *)
+
+      (*
+        todo
+        [x] crosshair
+        [ ] path
+       *)
 
     let grid_c = Color.of_rgb_s "#ccc"
 
@@ -306,6 +314,11 @@ module Make
       cx |> Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
+    let translate_to_grid_center (col, row) t =
+      t |> Affine.translate_i
+             (col * cell_w + cell_w / 2)
+             (row * cell_w + cell_w / 2)
+
     let cursor_c = Color.of_rgb_s "#fff"
     let cursor_coords =
       let a, b, c = 8, 26, 29 in
@@ -329,22 +342,22 @@ module Make
       in
       Array.init 4 elbow
 
-    let render_cursor ~t cx (col, row) =
+    let render_cursor ~t cx pos =
       let t = Affine.extend t in
-      t |> Affine.translate_i
-             (col * cell_w + cell_w / 2)
-             (row * cell_w + cell_w / 2);
+      t |> translate_to_grid_center pos;
       cursor_coords |> Array.iter
                          (fun (xs, ys) ->
                            cx |> Ctxt.vertices `Fill ~t ~c:cursor_c ~xs ~ys)
 
     let render_grid_elements ~t cx v =
-      render_grid ~t cx;
-      Option.iter (render_cursor ~t cx) v.cursor
+      begin
+        render_grid ~t cx;
+        Option.iter (render_cursor ~t cx) v.cursor;
+      end
 
     (* -- rendering map elements (players, items) -- *)
 
-    let blob_img ~color ~face assets =
+    let blob_img color face assets =
       assets.sprites |> Image.clip
                           ~x:(0 + 64 * face)
                           ~y:(0 + 64 * color)
@@ -352,19 +365,21 @@ module Make
 
     let item_img = item_icon_img
 
-    let render_player ~t cx assets p =
-      let { color; face; p_pos = (col, row); _ } = p in
+    let render_player ~t cx assets
+          { pl_color; pl_face; pl_pos; _ }
+      =
       let t = Affine.extend t in
-      t |> Affine.translate_i (col * cell_w) (row * cell_w);
-      cx |> Ctxt.image (assets |> blob_img ~color ~face)
-              ~t ~x:0 ~y:0
+      t |> translate_to_grid_center pl_pos;
+      cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
+              ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
 
-    let render_item ~t cx assets it =
-      let { it_type = ty; it_pos = (col, row) } = it in
+    let render_item ~t cx assets
+          { it_type; it_pos }
+      =
       let t = Affine.extend t in
-      t |> Affine.translate_i (col * cell_w) (row * cell_w);
-      cx |> Ctxt.image (assets |> item_img ty)
-              ~t ~x:0 ~y:0
+      t |> translate_to_grid_center it_pos;
+      cx |> Ctxt.image (assets |> item_img it_type)
+              ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
 
     let render_map_elements ~t cx v =
       render_player ~t cx v.assets v.p0;
