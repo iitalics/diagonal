@@ -59,6 +59,7 @@ module Make
     type t =
       { assets: assets;
         cursor: pos option;
+        path: path option;
         p0: player;
         p1: player;
         items: item list;
@@ -78,6 +79,12 @@ module Make
       { it_type: item_type;
         it_pos: pos }
 
+    and path =
+      { pa_start: pos;
+        pa_axis: [ `X | `Y ];
+        pa_straight: int;
+        pa_diagonal: int }
+
     let max_hp = 16
     let fps = 60
     let turn_total_f = fps * 3
@@ -85,7 +92,11 @@ module Make
     type init = unit
     let make assets _init =
       { assets;
-        cursor = Some(4, 2);
+        cursor = Some(4, 5);
+        path = Some { pa_start = (0, 0);
+                      pa_axis = `Y;
+                      pa_straight = +1;
+                      pa_diagonal = +4 };
         p0 = { pl_color = 0; pl_face = 0;
                pl_name = "Player One";
                pl_hp = 16;
@@ -271,12 +282,6 @@ module Make
 
     (* -- rendering the map -- *)
 
-      (*
-        todo
-        [x] crosshair
-        [ ] path
-       *)
-
     let grid_c = Color.of_rgb_s "#ccc"
 
     let cell_w = 64
@@ -323,6 +328,48 @@ module Make
              (col * cell_w + cell_w / 2)
              (row * cell_w + cell_w / 2)
 
+    let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
+    let path_rad = 6
+
+    let sgn x = if x < 0 then -1 else 1
+
+    let bent_line_coords axis s_len d_len =
+      let r, r', r'' =
+        path_rad,
+        path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
+        path_rad * 414 / 1000  (* ~ r * tan(22.5 deg) *)
+      in
+      let i      = sgn d_len in
+      let d_len' = abs d_len * sgn s_len in
+      match axis with
+      | `X ->
+         let x1, x2, y2 = s_len, s_len + d_len', d_len in
+         (*
+            0--------------1
+            |               \
+            5-----------4    \
+                         \    \
+                          3--- 2
+          *)
+         [|  0; x1 + r''*i; x2 + r'*i; x2 - r'*i; x1 - r''*i; 0 |],
+         [| -r;     -r    ; y2 - r'  ; y2 + r'  ;      r    ; r |]
+      | `Y ->
+         let y1, x2, y2 = s_len, d_len, s_len + d_len' in
+         [| -r;     -r    ; x2 - r'  ; x2 + r'  ;      r    ; r |],
+         [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
+
+    let render_path ~t cx
+          { pa_start; pa_axis; pa_straight; pa_diagonal }
+      =
+      let t = Affine.extend t in
+      t |> translate_to_grid_center pa_start;
+      let xs, ys = bent_line_coords
+                     pa_axis
+                     (cell_w * pa_straight)
+                     (cell_w * pa_diagonal) in
+      cx |> Ctxt.vertices `Fill
+              ~t ~c:path_c ~xs ~ys
+
     let cursor_c = Color.of_rgb_s "#fff"
     let cursor_coords =
       let a, b, c = 8, 26, 29 in
@@ -356,6 +403,7 @@ module Make
     let render_grid_elements ~t cx v =
       begin
         render_grid ~t cx;
+        Option.iter (render_path ~t cx) v.path;
         Option.iter (render_cursor ~t cx) v.cursor;
       end
 
