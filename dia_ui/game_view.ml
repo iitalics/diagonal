@@ -73,7 +73,8 @@ module Make
         pl_name: string;
         pl_hp: int;
         pl_item: item_type;
-        pl_alt_item: item_type option }
+        pl_alt_item: item_type option;
+        pl_switching: bool }
 
     and item =
       { it_type: item_type;
@@ -102,13 +103,15 @@ module Make
                pl_hp = 16;
                pl_item = `S;
                pl_alt_item = None;
-               pl_pos = (0, 0) };
+               pl_pos = (0, 0);
+               pl_switching = false };
         p1 = { pl_color = 1; pl_face = 2;
                pl_name = "Player Two";
                pl_hp = 4;
                pl_item = `F;
                pl_alt_item = Some `S;
-               pl_pos = (6, 2) };
+               pl_pos = (6, 2);
+               pl_switching = true };
         items = [ { it_type = `P;
                     it_pos = (3,3) } ];
         turn_num = 3;
@@ -409,21 +412,41 @@ module Make
 
     (* -- rendering map elements (players, items) -- *)
 
+    let blob_img_ox, blob_img_oy = 32, 32
     let blob_img color face assets =
       assets.sprites |> Image.clip
                           ~x:(0 + 64 * face)
                           ~y:(0 + 64 * color)
                           ~w:64 ~h:64
 
+    let swop_img_ox, swop_img_oy = 32, 32
+    let swop_dx, swop_dy = 0, -56
+    let swop_img assets =
+      assets.sprites |> Image.clip ~x:704 ~y:160 ~w:64 ~h:64
+
     let item_img = item_icon_img
 
-    let render_player ~assets ~t cx
+    let render_switching_above_player ~assets ~t cx =
+      let t = Affine.extend t in
+      t |> Affine.translate_i swop_dx swop_dy;
+      cx |> Ctxt.image (assets |> swop_img)
+              ~t ~x:(- swop_img_ox) ~y:(- swop_img_oy)
+
+    let render_player_z0 ~assets ~t cx
           { pl_color; pl_face; pl_pos; _ }
       =
       let t = Affine.extend t in
       t |> translate_to_grid_center pl_pos;
       cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
-              ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
+              ~t ~x:(- blob_img_ox) ~y:(- blob_img_oy)
+
+    let render_player_z1 ~assets ~t cx
+          { pl_pos; pl_switching; _ }
+      =
+      let t = Affine.extend t in
+      t |> translate_to_grid_center pl_pos;
+      if pl_switching then
+        render_switching_above_player ~assets ~t cx
 
     let render_item ~assets ~t cx
           { it_type; it_pos }
@@ -436,9 +459,13 @@ module Make
     let render_map_elements ~t cx
           { assets; p0; p1; items; _ }
       =
-      render_player ~assets ~t cx p0;
-      render_player ~assets ~t cx p1;
-      List.iter (render_item ~assets ~t cx) items
+      begin
+        render_player_z0 ~assets ~t cx p0;
+        render_player_z0 ~assets ~t cx p1;
+        List.iter (render_item ~assets ~t cx) items;
+        render_player_z1 ~assets ~t cx p0;
+        render_player_z1 ~assets ~t cx p1;
+      end
 
     (* -- main entry point -- *)
 
