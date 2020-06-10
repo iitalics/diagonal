@@ -47,9 +47,9 @@ module Make_loading_view
     type assets = Draw.Font.t
     let assets_rsrc = Rsrc.font ~family:"nunito" ~size:30
 
-    let bg_c = Draw.Color.of_rgb_s "#111111"
+    let bg_c = Draw.Color.of_rgb_s "#fff"
+    let loading_c = Draw.Color.of_rgb_s "#333"
     let loading_text = "Loading..."
-    let loading_c = Draw.Color.of_rgb_s "#eeeeee"
 
     let render_text cx font =
       let (cx_w, cx_h) = cx |> Draw.Ctxt.size in
