@@ -1,3 +1,5 @@
+module Gameplay_state = Dia_game.Gameplay_state
+
 module Make_views
          (Draw: Intf.Draw_S)
          (Rsrc: Intf.Rsrc_S with type font = Draw.Font.t
@@ -61,7 +63,7 @@ module Make_views
             ( v.sel <- false;
               match v.hov with
               | 0 -> disp |> View_disp.push_view (module Game_view)
-                               ~init:()
+                               ~init:(Gameplay_state.make ())
               | _ -> () )
 
         (* rendering *)

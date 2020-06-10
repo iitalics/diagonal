@@ -1,5 +1,7 @@
+module Gameplay_state = Dia_game.Gameplay_state
+
 module type S =
-  View.S with type init = unit
+  View.S with type init = Gameplay_state.t
 
 module Make
          (Draw: Intf.Draw_S)
@@ -90,8 +92,8 @@ module Make
     let max_hp = 16
     let turn_total = 3.
 
-    type init = unit
-    let make assets _init =
+    type init = Gameplay_state.t
+    let make assets _ =
       { assets;
         anim_time = 0.;
         cursor = Some(4, 5);

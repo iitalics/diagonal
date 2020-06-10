@@ -1,2 +1,4 @@
 (library
- (name dia_ui))
+ (name dia_ui)
+ (libraries
+   dia_game))
