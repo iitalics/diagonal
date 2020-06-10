@@ -92,7 +92,6 @@ module Make_dispatcher
          (Rsrc: Intf.Rsrc_S     with type font = Draw.Font.t
                                  and type image = Draw.Image.t)
          (Loader: Intf.Loader_S with type 'a rsrc = 'a Rsrc.t)
-
        : Dispatcher_S with type draw_ctxt = Draw.Ctxt.t
                        and type 'a rsrc   = 'a Rsrc.t
   =
@@ -110,7 +109,8 @@ module Make_dispatcher
 
     type t =
       { mutable lva: loading_view_assets;
-        mutable stack: view list }
+        mutable stack: view list;
+        mutable time: float }
 
     and loading_view_assets =
       | LV_loading of Loader.t
@@ -118,7 +118,7 @@ module Make_dispatcher
 
     and view =
       | Loading: 'i * Loader.t * (_, _, 'i) view_m -> view
-      | View:    'v            * ('v, _, _) view_m -> view
+      | View:    'v * float    * ('v, _, _) view_m -> view
 
     and ('v, 'a, 'i) view_m =
       (module View_S' with type t         = 'v
@@ -136,16 +136,18 @@ module Make_dispatcher
 
     (* initialization *)
 
-    let make_view (type a i) (assets: a option) (init: i)
+    let make_view (type a i) (assets: a option) (init: i) (time: float)
           (module V: View_S with type init = i and type assets = a)
       =
       match assets with
-      | Some(assets) -> View(V.make assets init, (module V))
+      | Some(assets) -> View(V.make assets init, time, (module V))
       | None         -> Loading(init, Loader.make (), (module V))
 
     let make ?assets ~init v_m =
+      let time = 0. in
       { lva = LV_loading(Loader.make ());
-        stack = [ make_view assets init v_m ] }
+        stack = [ make_view assets init time v_m ];
+        time }
 
     (* manipulating the view-stack *)
 
@@ -157,7 +159,7 @@ module Make_dispatcher
           | [] ->
              failwith "stack empty!"
 
-          | View(v, (module V)) :: _stack ->
+          | View(v, _t0, (module V)) :: _stack ->
              begin
                v |> V.switch vd;
                loop height'
@@ -167,7 +169,7 @@ module Make_dispatcher
              match loader |> Loader.load V.assets_rsrc with
              | `Done(assets) ->
                 begin
-                  vd.stack <- make_view (Some assets) init (module V) :: stack;
+                  vd.stack <- make_view (Some assets) init vd.time (module V) :: stack;
                   loop 0
                 end
              | `Loading -> ()
@@ -176,7 +178,7 @@ module Make_dispatcher
       loop 0
 
     let push_view ?assets ~init v_m (vd: t) =
-      vd.stack <- make_view assets init v_m :: vd.stack
+      vd.stack <- make_view assets init vd.time v_m :: vd.stack
 
     let pop_view (vd: t) = match vd.stack with
       | _ :: vs -> vd.stack <- vs
@@ -199,19 +201,22 @@ module Make_dispatcher
     let render cx (vd: t) =
       update_stack vd;
       match top_of_stack vd with
-      | View(v, (module V)) ->
+      | View(v, _t, (module V)) ->
          v |> V.render cx
       | Loading _ ->
          vd |> loading_view_assets |> Loading_view.render cx
 
-    let update time vd = match top_of_stack vd with
-      | View(v, (module V)) ->
-         v |> V.update time
+    let update time vd =
+      vd.time <- time;
+      match top_of_stack vd with
+      | View(v, time0, (module V)) ->
+         v |> V.update (time -. time0)
       | Loading _ ->
          ()
 
-    let handle_evt evt (vd: t) = match top_of_stack vd with
-      | View(v, (module V)) ->
+    let handle_evt evt (vd: t) =
+      match top_of_stack vd with
+      | View(v, _t0, (module V)) ->
          v |> V.handle_evt evt
       | Loading _ ->
          ()
