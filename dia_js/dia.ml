@@ -3,13 +3,13 @@ module Dom_html = Js_of_ocaml.Dom_html
 module Js = Js_of_ocaml.Js
 
 module View_disp =
-  Dia_ui.View.Make_dispatcher(Html5)(Html5.Rsrc)(Html5.Loader)
+  Dia_ui.View.Make_dispatcher(Html5)(Html5_rsrc)(Html5_rsrc.Cache)
 
 module Ui_views =
-  Dia_ui.Ui.Make_views(Html5)(Html5.Rsrc)(View_disp)
+  Dia_ui.Ui.Make_views(Html5)(Html5_rsrc)(View_disp)
 
 module Overlay =
-  Dia_ui.Fps_counter_overlay.Make(Html5)(Html5.Rsrc)(Html5.Loader)
+  Dia_ui.Fps_counter_overlay.Make(Html5)(Html5_rsrc)(Html5_rsrc.Cache)
 
 let the_view_disp =
   View_disp.make (module Ui_views.Main_menu)
