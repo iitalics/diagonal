@@ -58,13 +58,14 @@ module Make
 
     type t =
       { assets: assets;
+        mutable anim_time: float;
         cursor: pos option;
         path: path option;
         p0: player;
         p1: player;
         items: item list;
         turn_num: int;
-        mutable turn_time: float  }
+        mutable turn_time: float }
 
     and player =
       { pl_color: int;
@@ -92,6 +93,7 @@ module Make
     type init = unit
     let make assets _init =
       { assets;
+        anim_time = 0.;
         cursor = Some(4, 5);
         path = Some { pa_start = (0, 0);
                       pa_axis = `Y;
@@ -119,7 +121,10 @@ module Make
     (*** event handling ***)
 
     let update time v =
-      v.turn_time <- max 0. (turn_total -. time)
+      begin
+        v.anim_time <- time;
+        v.turn_time <- max 0. (turn_total -. time);
+      end
 
     let handle_evt _ _ = ()
     let switch _disp _v = ()
