@@ -64,7 +64,7 @@ module Make
         p1: player;
         items: item list;
         turn_num: int;
-        turn_timer_f: int  }
+        mutable turn_time: float  }
 
     and player =
       { pl_color: int;
@@ -87,8 +87,7 @@ module Make
         pa_diagonal: int }
 
     let max_hp = 16
-    let fps = 60
-    let turn_total_f = fps * 3
+    let turn_total = 3.
 
     type init = unit
     let make assets _init =
@@ -114,12 +113,14 @@ module Make
                pl_switching = true };
         items = [ { it_type = `P;
                     it_pos = (3,3) } ];
-        turn_num = 3;
-        turn_timer_f = 160 }
+        turn_num = 1;
+        turn_time = turn_total }
 
     (*** event handling ***)
 
-    let update _ _ = ()
+    let update time v =
+      v.turn_time <- max 0. (turn_total -. time)
+
     let handle_evt _ _ = ()
     let switch _disp _v = ()
 
@@ -247,14 +248,12 @@ module Make
                       ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
                       ~y:(hud_item_alt_text_dy))))
 
-    let render_hud_turn ~assets ~t cx turn_num timer_f =
+    let render_hud_turn ~assets ~t cx num time =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
       (* timer text *)
-      (let text = Printf.sprintf "turn %d (%.1fs)"
-                    turn_num
-                    (float_of_int timer_f /. float_of_int fps) in
+      (let text = Printf.sprintf "turn %d (%.1fs)" num time in
        let font = assets.hud_turn in
        let (mes_w, _) = font |> Font.measure text in
        cx |> Ctxt.text text
@@ -264,7 +263,7 @@ module Make
       (* timer bar *)
       (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + hud_turn_bar_w * timer_f / turn_total_f in
+       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. time /. turn_total) in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]
@@ -275,13 +274,13 @@ module Make
                ~ys:[| y0; y0; y1; y1; y0 |])
 
     let render_hud ~t cx
-          { assets; p0; p1; turn_num; turn_timer_f; _ }
+          { assets; p0; p1; turn_num; turn_time; _ }
       =
       begin
         render_hud_bg ~t cx;
         render_hud_player ~assets ~t cx 0 p0;
         render_hud_player ~assets ~t cx 1 p1;
-        render_hud_turn ~assets ~t cx turn_num turn_timer_f;
+        render_hud_turn ~assets ~t cx turn_num turn_time;
       end
 
     (* -- rendering the map -- *)
