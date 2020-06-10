@@ -8,11 +8,14 @@ module View_disp =
 module Ui_views =
   Dia_ui.Ui.Make_views(Html5)(Html5.Rsrc)(View_disp)
 
+module Overlay =
+  Dia_ui.Fps_counter_overlay.Make(Html5)(Html5.Rsrc)(Html5.Loader)
+
 let the_view_disp =
   View_disp.make (module Ui_views.Main_menu)
     ~init:()
-
-(* module GV = Dia_ui.Game_view.Make(Html5) *)
+let the_overlay =
+  Overlay.make ()
 
 let the_canvas = Dom_html.createCanvas Dom_html.document
 let the_ctxt   = the_canvas##getContext Dom_html._2d_
@@ -52,11 +55,14 @@ let () =
       ignore @@ on_key Dom_html.Event.keyup   (fun k -> View_disp.handle_evt (Key_up k)) );
 
     (* draw every frame *)
-    ( let rec loop () =
+    ( let rec render_loop time_ms =
+        let time = time_ms *. 0.001 in
         the_view_disp |> View_disp.render the_ctxt;
+        the_overlay |> Overlay.render the_ctxt ~time;
         ignore @@
           Dom_html.window##requestAnimationFrame
-            (Js.wrap_callback (fun _t -> loop ()))
+            (Js.wrap_callback render_loop);
       in
-      loop () );
+      render_loop @@
+        Js.Unsafe.global##.performance##now )
   end
