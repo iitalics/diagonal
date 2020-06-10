@@ -14,6 +14,7 @@ module Overlay =
 let the_view_disp =
   View_disp.make (module Ui_views.Main_menu)
     ~init:()
+
 let the_overlay =
   Overlay.make ()
 
