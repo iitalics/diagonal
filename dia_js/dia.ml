@@ -42,24 +42,34 @@ let () =
       resize () );
 
     (* listen for key events *)
-    ( let on_key dom_ev handle =
-        Dom.addEventListener
-          Dom_html.document##.body
-          dom_ev
-          (Dom.handler
-             (fun e ->
-               Js.Optdef.iter e##.key (fun kc -> handle (Js.to_string kc) the_view_disp);
-               Js._true))
-          Js._false
+    ( let handle ev =
+        the_view_disp |> View_disp.handle_evt ev;
+        the_overlay   |> Overlay.handle_evt ev;
       in
-      ignore @@ on_key Dom_html.Event.keydown (fun k -> View_disp.handle_evt (Key_dn k));
-      ignore @@ on_key Dom_html.Event.keyup   (fun k -> View_disp.handle_evt (Key_up k)) );
+      let on_key dom_ev mk_evt =
+        ignore @@
+          Dom.addEventListener
+            Dom_html.document##.body
+            dom_ev
+            (Dom.handler
+               (fun e ->
+                 Js.Optdef.iter e##.key
+                   (fun kc -> handle @@ mk_evt (Js.to_string kc));
+                 Js._true))
+            Js._false
+      in
+      on_key Dom_html.Event.keydown (fun k -> Key_dn k);
+      on_key Dom_html.Event.keyup   (fun k -> Key_up k) );
 
     (* draw every frame *)
     ( let rec render_loop time_ms =
+        (* update time *)
         let time = time_ms *. 0.001 in
+        the_view_disp |> View_disp.update time;
+        the_overlay   |> Overlay.update time;
+        (* render *)
         the_view_disp |> View_disp.render the_ctxt;
-        the_overlay |> Overlay.render the_ctxt ~time;
+        the_overlay   |> Overlay.render the_ctxt;
         ignore @@
           Dom_html.window##requestAnimationFrame
             (Js.wrap_callback render_loop);

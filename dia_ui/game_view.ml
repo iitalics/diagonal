@@ -119,6 +119,7 @@ module Make
 
     (*** event handling ***)
 
+    let update _ _ = ()
     let handle_evt _ _ = ()
     let switch _disp _v = ()
 

@@ -48,6 +48,8 @@ module Make_views
 
         (* event handling *)
 
+        let update _time _v = ()
+
         let handle_evt ev v = match (ev : View.Evt.t) with
           | Key_dn "ArrowDown" -> v.hov <- v.hov + 1
           | Key_dn "ArrowUp"   -> v.hov <- v.hov - 1

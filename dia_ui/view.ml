@@ -8,15 +8,20 @@ end
 
 (*** view interface ***)
 
-module type S = sig
+module type Basic_S = sig
   include Intf.S0
+
+  (* event handling *)
+  val update: float -> t -> unit
+  val handle_evt: Evt.t -> t -> unit
 
   (* rendering *)
   type draw_ctxt
   val render: draw_ctxt -> t -> unit
+end
 
-  (* event handling *)
-  val handle_evt: Evt.t -> t -> unit
+module type S = sig
+  include Basic_S
 
   (* asset dependencies & loading *)
   type assets
@@ -62,8 +67,7 @@ module Make_loading_view
 (*** view dispatcher ***)
 
 module type Dispatcher_S = sig
-  type t
-  type draw_ctxt
+  include Basic_S
   type 'a rsrc
 
   module type View_S =
@@ -81,9 +85,6 @@ module type Dispatcher_S = sig
                  -> unit
 
   val pop_view: t -> unit
-
-  val render: draw_ctxt -> t -> unit
-  val handle_evt: Evt.t -> t -> unit
 end
 
 module Make_dispatcher
@@ -202,6 +203,12 @@ module Make_dispatcher
          v |> V.render cx
       | Loading _ ->
          vd |> loading_view_assets |> Loading_view.render cx
+
+    let update time vd = match top_of_stack vd with
+      | View(v, (module V)) ->
+         v |> V.update time
+      | Loading _ ->
+         ()
 
     let handle_evt evt (vd: t) = match top_of_stack vd with
       | View(v, (module V)) ->

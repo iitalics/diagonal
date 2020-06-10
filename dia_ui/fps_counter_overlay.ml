@@ -2,10 +2,9 @@ module Option = Util.Option
 
 module type S =
   sig
-    type t
-    type draw_ctxt
+    include View.Basic_S
+
     val make: unit -> t
-    val render: time:float -> draw_ctxt -> t -> unit
   end
 
 module Make
@@ -18,6 +17,8 @@ module Make
     open Draw
     type draw_ctxt = Ctxt.t
 
+    (* init *)
+
     type t =
       { dt_avg: Running_average.t;
         mutable prev_time: float option;
@@ -29,11 +30,17 @@ module Make
         prev_time = None;
         font = `Loading(Loader.make ()) }
 
-    let push_time time t =
+    (* event handling *)
+
+    let update time t =
       t.prev_time |> Option.iter
                        (fun time' ->
                          t.dt_avg |> Running_average.push (time -. time'));
       t.prev_time <- Some(time)
+
+    let handle_evt _ _ = ()
+
+    (* resources *)
 
     let font_rsrc =
       Rsrc.font ~family:"nunito" ~size:16
@@ -45,6 +52,8 @@ module Make
          match loader |> Loader.load font_rsrc with
          | `Done(f)            -> ( t.font <- `Done(f); Some(f) )
          | `Error _ | `Loading -> None
+
+    (* rendering *)
 
     let fps_x, fps_y = 4, 4
     let fps_c = Color.of_rgb_s "#000"
@@ -60,8 +69,7 @@ module Make
               ~x:(cx_w - mes_w - fps_x)
               ~y:fps_y
 
-    let render ~(time: float) cx t =
-      t |> push_time time;
+    let render cx t =
       ignore @@
         Option.map2
           (render_overlay cx)
