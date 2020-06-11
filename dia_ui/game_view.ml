@@ -2,6 +2,7 @@ module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
 module Rules = Dia_game.Rules
+module Path = Dia_game.Path
 
 module type S =
   View.S with type init = Gameplay.t
@@ -66,7 +67,6 @@ module Make
         mutable game: Gameplay.t;
         mutable anim_time: float;
         mutable last_tick_time: float;
-        path: path option;
         p0: player;
         p1: player;
         items: item list }
@@ -85,12 +85,6 @@ module Make
       { it_type: item_type;
         it_pos: pos }
 
-    and path =
-      { pa_start: pos;
-        pa_axis: [ `X | `Y ];
-        pa_straight: int;
-        pa_diagonal: int }
-
     let max_hp = 16
     let turn_total = 3.
 
@@ -103,7 +97,7 @@ module Make
       v |> update_from_game (f v.game)
 
     let cursor v = v.game |> Gameplay.cursor
-    let path v = v.path
+    let path v = v.game |> Gameplay.path
     let turn_num v = v.game |> Gameplay.turn_num
 
     let turn_time v =
@@ -121,10 +115,6 @@ module Make
           game;
           anim_time = 0.;
           last_tick_time = 0.;
-          path = Some { pa_start = (0, 0);
-                        pa_axis = `Y;
-                        pa_straight = +1;
-                        pa_diagonal = +4 };
           p0 = { pl_color = 0; pl_face = 0;
                  pl_name = "Player One";
                  pl_hp = 16;
@@ -396,7 +386,7 @@ module Make
       let i      = sgn d_len in
       let d_len' = abs d_len * sgn s_len in
       match axis with
-      | `X ->
+      | Path.X ->
          let x1, x2, y2 = s_len, s_len + d_len', d_len in
          (*
             0--------------1
@@ -407,20 +397,20 @@ module Make
           *)
          [|  0; x1 + r''*i; x2 + r'*i; x2 - r'*i; x1 - r''*i; 0 |],
          [| -r;     -r    ; y2 - r'  ; y2 + r'  ;      r    ; r |]
-      | `Y ->
+      | Path.Y ->
          let y1, x2, y2 = s_len, d_len, s_len + d_len' in
          [| -r;     -r    ; x2 - r'  ; x2 + r'  ;      r    ; r |],
          [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
 
     let render_path ~t cx
-          { pa_start; pa_axis; pa_straight; pa_diagonal }
+          Path.{ start; axis; s_dis; d_dis }
       =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pa_start;
+      t |> translate_to_grid_center start;
       let xs, ys = bent_line_coords
-                     pa_axis
-                     (cell_w * pa_straight)
-                     (cell_w * pa_diagonal) in
+                     axis
+                     (cell_w * s_dis)
+                     (cell_w * d_dis) in
       cx |> Ctxt.vertices `Fill
               ~t ~c:path_c ~xs ~ys
 

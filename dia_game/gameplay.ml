@@ -31,3 +31,9 @@ let key_up _ t = t
 let cursor t = (t.cx, t.cy)
 let turn_num t = t.tn
 let turn_frame t = t.tf
+
+let path _ =
+  Some (Path.{ start = (0, 1);
+               axis = X;
+               s_dis = 3;
+               d_dis = -1 })
