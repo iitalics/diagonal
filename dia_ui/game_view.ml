@@ -65,11 +65,17 @@ module Make
     type t =
       { assets: assets;
         mutable game: Gameplay.t;
+        (* animations *)
         mutable anim_time: float;
         mutable last_tick_time: float;
-        p0: player;
-        p1: player;
-        items: item list }
+        (* players, map *)
+        mutable p0: player;
+        mutable p1: player;
+        (* cursor, path *)
+        mutable cursor: pos option;
+        mutable path_data: path_data option;
+        (* turn *)
+        mutable turn_data: turn_data }
 
     and player =
       { pl_color: int;
@@ -81,54 +87,90 @@ module Make
         pl_alt_item: item_type option;
         pl_switching: bool }
 
+(*
     and item =
       { it_type: item_type;
         it_pos: pos }
+ *)
+
+    and path_data =
+      { pa_pos: pos;
+        pa_s_dis: int;
+        pa_d_dis: int;
+        pa_s_sgn: int;
+        pa_d_sgn: int;
+        pa_axis: Path.axis }
+
+    and turn_data =
+      { tn_num: int;
+        tn_time_left: float;
+        tn_amt_left: float }
 
     let max_hp = 16
 
     (*** processing game state data ***)
 
+    let path_data_of_path Path.{ pos; dir; rev; s_dis; d_dis } =
+      { pa_pos = pos;
+        pa_s_dis = s_dis;
+        pa_d_dis = d_dis;
+        pa_s_sgn = dir |> Path.cardinal_sign;
+        pa_d_sgn = rev |> Path.revolution_sign ~dir;
+        pa_axis = dir |> Path.cardinal_axis }
+
+    let turn_data_of_turn Gameplay.{ tn_num; tn_frame } =
+      { tn_num;
+        tn_time_left = float_of_int (Rules.turn_frames - tn_frame)
+                       /. Rules.fps_fl;
+        tn_amt_left  = float_of_int (Rules.turn_frames - tn_frame)
+                       /. float_of_int Rules.turn_frames }
+
     let update_from_game game v =
-      v.game <- game
+      begin
+        v.game <- game;
+        (* players, map *)
+        let pl0, pl1 = game |> Gameplay.player_0, game |> Gameplay.player_1 in
+        v.p0 <- { v.p0 with pl_pos = (pl0.pl_x, pl0.pl_y) };
+        v.p1 <- { v.p1 with pl_pos = (pl1.pl_x, pl1.pl_y) };
+        (* cursor, path *)
+        v.cursor <- game |> Gameplay.cursor;
+        v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
+        (* turn *)
+        v.turn_data <- game |> Gameplay.turn |> turn_data_of_turn;
+      end
 
     let update_game f v =
       v |> update_from_game (f v.game)
-
-    let cursor v = v.game |> Gameplay.cursor
-    let path v = v.game |> Gameplay.path
-    let turn_num v = v.game |> Gameplay.turn_num
-
-    let turn_time v =
-      let f = v.game |> Gameplay.turn_frame in
-      (* TODO: interpolate *)
-      float_of_int (Rules.turn_frames - f) /. Rules.fps_fl
 
     (* init *)
 
     type init = Gameplay.t
 
+    let default_player color face name =
+      { pl_color = color;
+        pl_face = face;
+        pl_name = name;
+        pl_hp = 16;
+        pl_item = `S;
+        pl_alt_item = None;
+        pl_pos = (0, 0);
+        pl_switching = false }
+
     let make assets game =
       let v0 =
         { assets;
           game;
+          (* animations *)
           anim_time = 0.;
           last_tick_time = 0.;
-          p0 = { pl_color = 0; pl_face = 0;
-                 pl_name = "Player One";
-                 pl_hp = 16;
-                 pl_item = `S;
-                 pl_alt_item = None;
-                 pl_pos = (3, 3);
-                 pl_switching = false };
-          p1 = { pl_color = 1; pl_face = 2;
-                 pl_name = "Player Two";
-                 pl_hp = 4;
-                 pl_item = `F;
-                 pl_alt_item = Some `S;
-                 pl_pos = (7, 7);
-                 pl_switching = true };
-          items = [] }
+          (* players, map *)
+          p0 = default_player 0 0 "Player One";
+          p1 = default_player 3 2 "Player Two";
+          (* cursor, path *)
+          cursor = None;
+          path_data = None;
+          (* turn *)
+          turn_data = { tn_num = 0; tn_time_left = 0.; tn_amt_left = 0. } }
       in
       v0 |> update_from_game game; v0
 
@@ -290,15 +332,14 @@ module Make
                       ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
                       ~y:(hud_item_alt_text_dy))))
 
-    let render_hud_turn ~assets ~t cx num time_left =
+    let render_hud_turn ~assets ~t cx
+          { tn_num; tn_time_left; tn_amt_left }
+      =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
-      (* amt: 0.0 = empty, 1.0 = full *)
-      let amt = time_left *. Rules.fps_fl /. float_of_int Rules.turn_frames in
-
       (* timer text *)
-      (let text = Printf.sprintf "turn %d (%.1fs)" num time_left in
+      (let text = Printf.sprintf "turn %d (%.1fs)" tn_num tn_time_left in
        let font = assets.hud_turn in
        let (mes_w, _) = font |> Font.measure text in
        cx |> Ctxt.text text
@@ -308,7 +349,7 @@ module Make
       (* timer bar *)
       (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
+       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. tn_amt_left) in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]
@@ -319,13 +360,13 @@ module Make
                ~ys:[| y0; y0; y1; y1; y0 |])
 
     let render_hud ~t cx
-          ({ assets; p0; p1; _ } as v)
+          { assets; p0; p1; turn_data; _ }
       =
       begin
         render_hud_bg ~t cx;
         render_hud_player ~assets ~t cx 0 p0;
         render_hud_player ~assets ~t cx 1 p1;
-        render_hud_turn ~assets ~t cx (v |> turn_num) (v |> turn_time);
+        render_hud_turn ~assets ~t cx turn_data
       end
 
     (* -- rendering the map -- *)
@@ -376,7 +417,7 @@ module Make
              (row * cell_w + cell_w / 2)
 
     let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
-    let path_rad = 6
+    let path_rad = 16
 
     let bent_line_coords s_len d_len s_sgn d_sgn axis =
       let r, r', r'' =
@@ -412,18 +453,14 @@ module Make
          [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
 
     let render_path ~t cx
-          Path.{ pos; dir; rev; s_dis; d_dis }
+          { pa_pos; pa_s_dis; pa_d_dis; pa_s_sgn; pa_d_sgn; pa_axis }
       =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pos;
-      let xs, ys =
-        bent_line_coords
-          (s_dis * cell_w)
-          (d_dis * cell_w)
-          (dir |> Path.cardinal_sign)
-          (rev |> Path.revolution_sign ~dir)
-          (dir |> Path.cardinal_axis)
-      in
+      t |> translate_to_grid_center pa_pos;
+      let xs, ys = bent_line_coords
+                     (pa_s_dis * cell_w)
+                     (pa_d_dis * cell_w)
+                     pa_s_sgn pa_d_sgn pa_axis in
       cx |> Ctxt.vertices `Fill
               ~t ~c:path_c ~xs ~ys
 
@@ -460,8 +497,8 @@ module Make
     let render_grid_elements ~t cx v =
       begin
         render_grid ~t cx;
-        v |> path |> Option.iter (render_path ~t cx);
-        v |> cursor |> Option.iter (render_cursor ~t cx);
+        v.path_data |> Option.iter (render_path ~t cx);
+        v.cursor |> Option.iter (render_cursor ~t cx);
       end
 
     (* -- rendering map elements (players, items) -- *)
@@ -478,7 +515,7 @@ module Make
     let swop_img assets =
       assets.sprites |> Image.clip ~x:704 ~y:160 ~w:64 ~h:64
 
-    let item_img = item_icon_img
+    (* let item_img = item_icon_img *)
 
     let render_switching_above_player ~assets ~t cx =
       let t = Affine.extend t in
@@ -502,6 +539,7 @@ module Make
       if pl_switching then
         render_switching_above_player ~assets ~t cx
 
+      (*
     let render_item ~assets ~t cx
           { it_type; it_pos }
       =
@@ -509,14 +547,15 @@ module Make
       t |> translate_to_grid_center it_pos;
       cx |> Ctxt.image (assets |> item_img it_type)
               ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
+       *)
 
     let render_map_elements ~t cx
-          { assets; p0; p1; items; _ }
+          { assets; p0; p1; _ }
       =
       begin
         render_player_z0 ~assets ~t cx p0;
         render_player_z0 ~assets ~t cx p1;
-        List.iter (render_item ~assets ~t cx) items;
+        (* List.iter (render_item ~assets ~t cx) items; *)
         render_player_z1 ~assets ~t cx p0;
         render_player_z1 ~assets ~t cx p1;
       end
