@@ -86,7 +86,6 @@ module Make
         it_pos: pos }
 
     let max_hp = 16
-    let turn_total = 3.
 
     (*** processing game state data ***)
 
@@ -197,7 +196,7 @@ module Make
     let hud_item_alt_text_c = Color.of_rgb_s "#111"
     let hud_item_alt_text_dy = 20
     let hud_turn_x = hud_w / 2
-    let hud_turn_y = 82
+    let hud_turn_y = 78
     let hud_turn_bar_w = 160
     let hud_turn_bar_h = 12
     let hud_turn_bar_dy = 20
@@ -291,12 +290,15 @@ module Make
                       ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
                       ~y:(hud_item_alt_text_dy))))
 
-    let render_hud_turn ~assets ~t cx num time =
+    let render_hud_turn ~assets ~t cx num time_left =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
+      (* amt: 0.0 = empty, 1.0 = full *)
+      let amt = time_left *. Rules.fps_fl /. float_of_int Rules.turn_frames in
+
       (* timer text *)
-      (let text = Printf.sprintf "turn %d (%.1fs)" num time in
+      (let text = Printf.sprintf "turn %d (%.1fs)" num time_left in
        let font = assets.hud_turn in
        let (mes_w, _) = font |> Font.measure text in
        cx |> Ctxt.text text
@@ -306,7 +308,7 @@ module Make
       (* timer bar *)
       (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. time /. turn_total) in
+       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]
