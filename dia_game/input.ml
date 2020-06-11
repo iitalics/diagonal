@@ -4,4 +4,5 @@ module Key = struct
     | Left
     | Up
     | Down
+    | Esc
 end

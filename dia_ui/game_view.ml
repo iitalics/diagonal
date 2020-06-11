@@ -154,6 +154,7 @@ module Make
         | "ArrowRight" -> Some Input.Key.Right
         | "ArrowUp"    -> Some Input.Key.Up
         | "ArrowDown"  -> Some Input.Key.Down
+        | "Escape"     -> Some Input.Key.Esc
         | _            -> None
       in
       match evt with
@@ -458,7 +459,7 @@ module Make
       begin
         render_grid ~t cx;
         v |> path |> Option.iter (render_path ~t cx);
-        v |> cursor |> render_cursor ~t cx
+        v |> cursor |> Option.iter (render_cursor ~t cx);
       end
 
     (* -- rendering map elements (players, items) -- *)
