@@ -403,10 +403,10 @@ module Make
          [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
 
     let render_path ~t cx
-          Path.{ start; axis; s_dis; d_dis }
+          Path.{ pos; axis; s_dis; d_dis }
       =
       let t = Affine.extend t in
-      t |> translate_to_grid_center start;
+      t |> translate_to_grid_center pos;
       let xs, ys = bent_line_coords
                      axis
                      (cell_w * s_dis)

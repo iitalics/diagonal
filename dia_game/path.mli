@@ -1,9 +1,10 @@
 type t =
-  { start: int * int;
+  { pos: int * int;
     axis: axis;
     s_dis: int;
     d_dis: int }
 
 and axis = X | Y
 
-val make: pos0:int * int -> pos1:int * int -> t
+val from_origin: pos:int * int -> dx:int -> dy:int -> t
+val from_points: src:int * int -> tgt:int * int -> t
