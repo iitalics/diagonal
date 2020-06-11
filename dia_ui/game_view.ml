@@ -1,4 +1,6 @@
 module Gameplay_state = Dia_game.Gameplay_state
+module Evt = View.Evt
+module Input = Dia_game.Input
 
 module type S =
   View.S with type init = Gameplay_state.t
@@ -60,8 +62,8 @@ module Make
 
     type t =
       { assets: assets;
+        mutable game: Gameplay_state.t;
         mutable anim_time: float;
-        cursor: pos option;
         path: path option;
         p0: player;
         p1: player;
@@ -92,43 +94,76 @@ module Make
     let max_hp = 16
     let turn_total = 3.
 
+    (*** processing game state data ***)
+
+    let update_from_game game v =
+      v.game <- game
+
+    let update_game f v =
+      v |> update_from_game (f v.game)
+
+    let cursor v = v.game |> Gameplay_state.cursor
+    let path v = v.path
+
+    (* init *)
+
     type init = Gameplay_state.t
-    let make assets _ =
-      { assets;
-        anim_time = 0.;
-        cursor = Some(4, 5);
-        path = Some { pa_start = (0, 0);
-                      pa_axis = `Y;
-                      pa_straight = +1;
-                      pa_diagonal = +4 };
-        p0 = { pl_color = 0; pl_face = 0;
-               pl_name = "Player One";
-               pl_hp = 16;
-               pl_item = `S;
-               pl_alt_item = None;
-               pl_pos = (0, 0);
-               pl_switching = false };
-        p1 = { pl_color = 1; pl_face = 2;
-               pl_name = "Player Two";
-               pl_hp = 4;
-               pl_item = `F;
-               pl_alt_item = Some `S;
-               pl_pos = (6, 2);
-               pl_switching = true };
-        items = [ { it_type = `P;
-                    it_pos = (3,3) } ];
-        turn_num = 1;
-        turn_time = turn_total }
+
+    let make assets game =
+      let v0 =
+        { assets;
+          game;
+          anim_time = 0.;
+          path = Some { pa_start = (0, 0);
+                        pa_axis = `Y;
+                        pa_straight = +1;
+                        pa_diagonal = +4 };
+          p0 = { pl_color = 0; pl_face = 0;
+                 pl_name = "Player One";
+                 pl_hp = 16;
+                 pl_item = `S;
+                 pl_alt_item = None;
+                 pl_pos = (0, 0);
+                 pl_switching = false };
+          p1 = { pl_color = 1; pl_face = 2;
+                 pl_name = "Player Two";
+                 pl_hp = 4;
+                 pl_item = `F;
+                 pl_alt_item = Some `S;
+                 pl_pos = (6, 2);
+                 pl_switching = true };
+          items = [ { it_type = `P;
+                      it_pos = (3,3) } ];
+          turn_num = 1;
+          turn_time = turn_total }
+      in
+      v0 |> update_from_game game; v0
 
     (*** event handling ***)
 
     let update time v =
       begin
+        (* TODO: "v |> update_game Gameplay_state.tick" *)
         v.anim_time <- time;
         v.turn_time <- max 0. (turn_total -. time);
       end
 
-    let handle_evt _ _ = ()
+    let handle_evt evt v =
+      let input_of_key_code = function
+        | "ArrowLeft"  -> Some Input.Key.Left
+        | "ArrowRight" -> Some Input.Key.Right
+        | "ArrowUp"    -> Some Input.Key.Up
+        | "ArrowDown"  -> Some Input.Key.Down
+        | _            -> None
+      in
+      match evt with
+      | Evt.Key_dn kc ->
+         input_of_key_code kc |>
+           Option.iter (fun i -> v |> update_game (Gameplay_state.key_dn i))
+      | Evt.Key_up kc ->
+         input_of_key_code kc |>
+           Option.iter (fun i -> v |> update_game (Gameplay_state.key_up i))
+
     let switch _disp _v = ()
 
     (*** rendering ***)
@@ -413,8 +448,8 @@ module Make
     let render_grid_elements ~t cx v =
       begin
         render_grid ~t cx;
-        Option.iter (render_path ~t cx) v.path;
-        Option.iter (render_cursor ~t cx) v.cursor;
+        v |> path |> Option.iter (render_path ~t cx);
+        v |> cursor |> render_cursor ~t cx
       end
 
     (* -- rendering map elements (players, items) -- *)
