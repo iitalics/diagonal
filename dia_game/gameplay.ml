@@ -13,8 +13,9 @@ let grid_clamp v = v |> max 0 |> min (Rules.grid_cols - 1)
 let move dx dy t =
   let cx, cy = grid_clamp (t.cx + dx), grid_clamp (t.cy + dy) in
   let pa = Path.from_points
-             ~src:(0, 0)
-             ~tgt:(cx, cy) |> Option.some in
+             ~src:(3, 3)
+             ~tgt:(cx, cy) in
+  let pa = Some pa in
   { t with cx; cy; pa }
 
 let tick t =

@@ -120,17 +120,16 @@ module Make
                  pl_hp = 16;
                  pl_item = `S;
                  pl_alt_item = None;
-                 pl_pos = (0, 0);
+                 pl_pos = (3, 3);
                  pl_switching = false };
           p1 = { pl_color = 1; pl_face = 2;
                  pl_name = "Player Two";
                  pl_hp = 4;
                  pl_item = `F;
                  pl_alt_item = Some `S;
-                 pl_pos = (6, 2);
+                 pl_pos = (7, 7);
                  pl_switching = true };
-          items = [ { it_type = `P;
-                      it_pos = (3,3) } ] }
+          items = [] }
       in
       v0 |> update_from_game game; v0
 
@@ -383,17 +382,23 @@ module Make
         path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
         path_rad * 414 / 1000  (* ~ r * tan(22.5 deg) *)
       in
-      let i      = sgn d_len in
       let d_len' = abs d_len * sgn s_len in
+      let i      = sgn d_len * sgn s_len in
       match axis with
       | Path.X ->
          let x1, x2, y2 = s_len, s_len + d_len', d_len in
          (*
             0--------------1
-            |               \
+            |            *  \         * = (x1,0)
             5-----------4    \
                          \    \
-                          3--- 2
+                          3----2
+
+                          2----3
+                         /    /
+            0-----------1    /
+            |            *  /
+            5--------------4
           *)
          [|  0; x1 + r''*i; x2 + r'*i; x2 - r'*i; x1 - r''*i; 0 |],
          [| -r;     -r    ; y2 - r'  ; y2 + r'  ;      r    ; r |]
