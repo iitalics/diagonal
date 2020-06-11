@@ -375,47 +375,52 @@ module Make
     let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
     let path_rad = 6
 
-    let bent_line_coords axis s_len d_len =
-      let sgn x = if x < 0 then -1 else 1 in
+    let bent_line_coords s_len d_len s_sgn d_sgn axis =
       let r, r', r'' =
         path_rad,
         path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
         path_rad * 414 / 1000  (* ~ r * tan(22.5 deg) *)
       in
-      let d_len' = abs d_len * sgn s_len in
-      let i      = sgn d_len * sgn s_len in
+      let v1 = s_len * s_sgn in
+      let v2 = d_len * s_sgn + v1 in
+      let v3 = d_len * d_sgn in
+      let i  = s_sgn * d_sgn in
       match axis with
       | Path.X ->
-         let x1, x2, y2 = s_len, s_len + d_len', d_len in
+         let x1, x2, y2 = v1, v2, v3 in
          (*
-            0--------------1
-            |            *  \         * = (x1,0)
-            5-----------4    \
+            0--------------1          + = ( 0, 0)
+            +            *  \         * = (x1, 0)
+            5-----------4    \        @ = (x2,y2)
                          \    \
-                          3----2
+                          3-@--2
 
-                          2----3
+                          2--@-3
                          /    /
             0-----------1    /
-            |            *  /
+            +            *  /
             5--------------4
           *)
          [|  0; x1 + r''*i; x2 + r'*i; x2 - r'*i; x1 - r''*i; 0 |],
          [| -r;     -r    ; y2 - r'  ; y2 + r'  ;      r    ; r |]
       | Path.Y ->
-         let y1, x2, y2 = s_len, d_len, s_len + d_len' in
+         let y1, y2, x2 = v1, v2, v3 in
          [| -r;     -r    ; x2 - r'  ; x2 + r'  ;      r    ; r |],
          [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
 
     let render_path ~t cx
-          Path.{ pos; axis; s_dis; d_dis }
+          Path.{ pos; dir; rev; s_dis; d_dis }
       =
       let t = Affine.extend t in
       t |> translate_to_grid_center pos;
-      let xs, ys = bent_line_coords
-                     axis
-                     (cell_w * s_dis)
-                     (cell_w * d_dis) in
+      let xs, ys =
+        bent_line_coords
+          (s_dis * cell_w)
+          (d_dis * cell_w)
+          (dir |> Path.cardinal_sign)
+          (rev |> Path.revolution_sign ~dir)
+          (dir |> Path.cardinal_axis)
+      in
       cx |> Ctxt.vertices `Fill
               ~t ~c:path_c ~xs ~ys
 
