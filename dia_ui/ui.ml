@@ -1,4 +1,4 @@
-module Gameplay_state = Dia_game.Gameplay_state
+module Gameplay = Dia_game.Gameplay
 
 module Make_views
          (Draw: Intf.Draw_S)
@@ -63,7 +63,7 @@ module Make_views
             ( v.sel <- false;
               match v.hov with
               | 0 -> disp |> View_disp.push_view (module Game_view)
-                               ~init:(Gameplay_state.make ())
+                               ~init:(Gameplay.make ())
               | _ -> () )
 
         (* rendering *)

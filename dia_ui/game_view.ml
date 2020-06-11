@@ -1,10 +1,10 @@
 module Evt = View.Evt
-module Gameplay_state = Dia_game.Gameplay_state
+module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
 module Rules = Dia_game.Rules
 
 module type S =
-  View.S with type init = Gameplay_state.t
+  View.S with type init = Gameplay.t
 
 module Make
          (Draw: Intf.Draw_S)
@@ -63,7 +63,7 @@ module Make
 
     type t =
       { assets: assets;
-        mutable game: Gameplay_state.t;
+        mutable game: Gameplay.t;
         mutable anim_time: float;
         mutable last_tick_time: float;
         path: path option;
@@ -102,17 +102,18 @@ module Make
     let update_game f v =
       v |> update_from_game (f v.game)
 
-    let cursor v = v.game |> Gameplay_state.cursor
+    let cursor v = v.game |> Gameplay.cursor
     let path v = v.path
-    let turn_num v = v.game |> Gameplay_state.turn_num
+    let turn_num v = v.game |> Gameplay.turn_num
 
     let turn_time v =
-      let f = v.game |> Gameplay_state.turn_frame in
+      let f = v.game |> Gameplay.turn_frame in
+      (* TODO: interpolate *)
       float_of_int (Rules.turn_frames - f) /. Rules.fps_fl
 
     (* init *)
 
-    type init = Gameplay_state.t
+    type init = Gameplay.t
 
     let make assets game =
       let v0 =
@@ -150,7 +151,7 @@ module Make
     let update time v =
       let rec tick time0 =
         if time > time0 +. frame_dt then
-          ( v |> update_game Gameplay_state.tick;
+          ( v |> update_game Gameplay.tick;
             tick (time0 +. frame_dt) )
         else
           v.last_tick_time <- time0
@@ -169,10 +170,10 @@ module Make
       match evt with
       | Evt.Key_dn kc ->
          input_of_key_code kc |>
-           Option.iter (fun i -> v |> update_game (Gameplay_state.key_dn i))
+           Option.iter (fun i -> v |> update_game (Gameplay.key_dn i))
       | Evt.Key_up kc ->
          input_of_key_code kc |>
-           Option.iter (fun i -> v |> update_game (Gameplay_state.key_up i))
+           Option.iter (fun i -> v |> update_game (Gameplay.key_up i))
 
     let switch _disp _v = ()
 
