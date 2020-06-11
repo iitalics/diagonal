@@ -48,3 +48,15 @@ let cardinal_sign = function
 let revolution_sign ~dir rev = match dir with
   | N | E -> (match rev with CW -> +1 | CCW -> -1)
   | S | W -> (match rev with CW -> -1 | CCW -> +1)
+
+let source { pos; _ } =
+  pos
+
+let target { pos; dir; rev; s_dis; d_dis } =
+  let s_sgn = dir |> cardinal_sign in
+  let d_sgn = rev |> revolution_sign ~dir in
+  let (x0, y0) = pos in
+  let (s, d1, d2) = (s_dis * s_sgn, d_dis * s_sgn, d_dis * d_sgn) in
+  match dir |> cardinal_axis with
+  | X -> x0 + s + d1, y0 + d2
+  | Y -> x0 + d2, y0 + s + d1

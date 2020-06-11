@@ -37,39 +37,49 @@ let move_cursor_by dx dy t =
          (grid_clamp (t.cx + dx))
          (grid_clamp (t.cy + dy))
 
-let is_cursor_active t =
+let reset_cursor t =
   let { pl_x; pl_y } = t.pl0 in
-  t.cx <> pl_x || t.cy <> pl_y
+  t |> move_cursor_to pl_x pl_y
 
-let cursor t =
-  if t |> is_cursor_active then
-    Some(t.cx, t.cy)
-  else
-    None
+let cursor' t =
+  (t.cx, t.cy)
 
-let path t =
-  if t |> is_cursor_active then
-    Some(Path.from_points
-           ~src:(t.pl0 |> player_pos)
-           ~tgt:(t.cx, t.cy))
-  else
-    None
+let path' t =
+  Path.from_points
+    ~src:(t.pl0 |> player_pos)
+    ~tgt:(t.cx, t.cy)
+
+let is_cursor_active t =
+  (t |> cursor') <> (t.pl0 |> player_pos)
+
+let cursor t = if t |> is_cursor_active then Some(t |> cursor') else None
+let path t = if t |> is_cursor_active then Some(t |> path') else None
 
 (* turn *)
 
 let tick_turn { tn_num = n; tn_frame = f } =
   let f' = f + 1 in
   if f' >= Rules.turn_frames then
-    { tn_num = n + 1; tn_frame = 0 }
+    { tn_num = n + 1; tn_frame = 0 }, true
   else
-    { tn_num = n; tn_frame = f' }
+    { tn_num = n; tn_frame = f' }, false
+
+let end_turn t =
+  let (p_x, p_y) = t |> path' |> Path.target in
+  let t = { t with pl0 = { pl_x = p_x; pl_y = p_y } } in
+  t |> reset_cursor
 
 let turn t = t.tn
 
 (* tick *)
 
 let tick t =
-  { t with tn = t.tn |> tick_turn }
+  let tn, ended = t.tn |> tick_turn in
+  let t = { t with tn } in
+  if ended then
+    t |> end_turn
+  else
+    t
 
 (* key events *)
 
@@ -78,8 +88,6 @@ let key_dn k t = match k with
   | Input.Key.Right -> t |> move_cursor_by (+1) 0
   | Input.Key.Up    -> t |> move_cursor_by 0 (-1)
   | Input.Key.Down  -> t |> move_cursor_by 0 (+1)
-  | Input.Key.Esc   ->
-     let { pl_x; pl_y } = t.pl0 in
-     t |> move_cursor_to pl_x pl_y
+  | Input.Key.Esc   -> t |> reset_cursor
 
 let key_up _ t = t

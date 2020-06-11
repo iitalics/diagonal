@@ -12,6 +12,9 @@ and axis = X | Y
 val from_origin: pos:int * int -> dx:int -> dy:int -> t
 val from_points: src:int * int -> tgt:int * int -> t
 
+val source: t -> int * int
+val target: t -> int * int
+
 val string_of_cardinal: cardinal -> string
 val string_of_revolution: revolution -> string
 val cardinal_axis: cardinal -> axis
