@@ -1,6 +1,7 @@
-module Gameplay_state = Dia_game.Gameplay_state
 module Evt = View.Evt
+module Gameplay_state = Dia_game.Gameplay_state
 module Input = Dia_game.Input
+module Rules = Dia_game.Rules
 
 module type S =
   View.S with type init = Gameplay_state.t
@@ -64,12 +65,11 @@ module Make
       { assets: assets;
         mutable game: Gameplay_state.t;
         mutable anim_time: float;
+        mutable last_tick_time: float;
         path: path option;
         p0: player;
         p1: player;
-        items: item list;
-        turn_num: int;
-        mutable turn_time: float }
+        items: item list }
 
     and player =
       { pl_color: int;
@@ -104,6 +104,11 @@ module Make
 
     let cursor v = v.game |> Gameplay_state.cursor
     let path v = v.path
+    let turn_num v = v.game |> Gameplay_state.turn_num
+
+    let turn_time v =
+      let f = v.game |> Gameplay_state.turn_frame in
+      float_of_int (Rules.turn_frames - f) /. Rules.fps_fl
 
     (* init *)
 
@@ -114,6 +119,7 @@ module Make
         { assets;
           game;
           anim_time = 0.;
+          last_tick_time = 0.;
           path = Some { pa_start = (0, 0);
                         pa_axis = `Y;
                         pa_straight = +1;
@@ -133,20 +139,24 @@ module Make
                  pl_pos = (6, 2);
                  pl_switching = true };
           items = [ { it_type = `P;
-                      it_pos = (3,3) } ];
-          turn_num = 1;
-          turn_time = turn_total }
+                      it_pos = (3,3) } ] }
       in
       v0 |> update_from_game game; v0
 
     (*** event handling ***)
 
+    let frame_dt = 1. /. Rules.fps_fl
+
     let update time v =
-      begin
-        (* TODO: "v |> update_game Gameplay_state.tick" *)
-        v.anim_time <- time;
-        v.turn_time <- max 0. (turn_total -. time);
-      end
+      let rec tick time0 =
+        if time > time0 +. frame_dt then
+          ( v |> update_game Gameplay_state.tick;
+            tick (time0 +. frame_dt) )
+        else
+          v.last_tick_time <- time0
+      in
+      v.anim_time <- time;
+      tick v.last_tick_time
 
     let handle_evt evt v =
       let input_of_key_code = function
@@ -316,13 +326,13 @@ module Make
                ~ys:[| y0; y0; y1; y1; y0 |])
 
     let render_hud ~t cx
-          { assets; p0; p1; turn_num; turn_time; _ }
+          ({ assets; p0; p1; _ } as v)
       =
       begin
         render_hud_bg ~t cx;
         render_hud_player ~assets ~t cx 0 p0;
         render_hud_player ~assets ~t cx 1 p1;
-        render_hud_turn ~assets ~t cx turn_num turn_time;
+        render_hud_turn ~assets ~t cx (v |> turn_num) (v |> turn_time);
       end
 
     (* -- rendering the map -- *)
@@ -330,8 +340,7 @@ module Make
     let grid_c = Color.of_rgb_s "#ccc"
 
     let cell_w = 64
-    let cells = 8
-    let map_w = cell_w * cells
+    let map_w = cell_w * Rules.grid_cols
     let map_y = 260
 
     let map_img_ox, map_img_oy = 64, 64
@@ -376,9 +385,8 @@ module Make
     let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
     let path_rad = 6
 
-    let sgn x = if x < 0 then -1 else 1
-
     let bent_line_coords axis s_len d_len =
+      let sgn x = if x < 0 then -1 else 1 in
       let r, r', r'' =
         path_rad,
         path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
