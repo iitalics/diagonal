@@ -7,10 +7,22 @@ module Pos = struct
 end
 
 module Player = struct
-  type t = { pos: Pos.t }
-end
+  type t = { pos: Pos.t;
+             anim: anim }
 
-module Phase = struct
+  and anim =
+    | No_anim
+    | Moving of Path.t
+
+  let make x y =
+    { pos = (x, y);
+      anim = No_anim }
+
+  let move_anim path pl =
+    { pl with anim = Moving(path) }
+
+  let move_to pos _pl =
+    { pos; anim = No_anim }
 end
 
 type t =
@@ -25,8 +37,8 @@ and phase =
   | Move of { pa0: Path.t }
 
 let make () =
-  { pl0 = Player.{ pos = (3, 3) };
-    pl1 = Player.{ pos = (6, 7) };
+  { pl0 = Player.make 3 3;
+    pl1 = Player.make 6 7;
     turn_num = 1;
     phase = Turn { cu = (3, 3) };
     f = 0 }
@@ -52,13 +64,13 @@ let update_phase t = match t.phase with
      let path = Path.from_points
                   ~src:t.pl0.pos
                   ~tgt:cu in
-     (Move { pa0 = path }),
+     Move { pa0 = path },
      Animate_player_0(path)
 
   | Move { pa0 } when (t.f >= (pa0 |> path_anim_frames)) ->
      let tgt0 = pa0 |> Path.target in
      let tgt1 = t.pl1.pos in
-     (Turn { cu = tgt0 }),
+     Turn { cu = tgt0 },
      Move_players(tgt0, tgt1)
 
   | phase ->
@@ -66,15 +78,16 @@ let update_phase t = match t.phase with
 
 let apply_phase_action t = function
   | No_op -> t
-  | Animate_player_0(_pa) ->
+  | Animate_player_0(pa) ->
      { t with
-       f = 0 }
+       f = 0;
+       pl0 = t.pl0 |> Player.move_anim pa }
   | Move_players(pos0, pos1) ->
      { t with
        turn_num = t.turn_num + 1;
        f = 0;
-       pl0 = Player.{ pos = pos0 };
-       pl1 = Player.{ pos = pos1 } }
+       pl0 = t.pl0 |> Player.move_to pos0;
+       pl1 = t.pl1 |> Player.move_to pos1 }
 
 let turn t =
   let num = t.turn_num in
