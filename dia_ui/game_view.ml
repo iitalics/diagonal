@@ -71,23 +71,26 @@ module Make
         mutable anim_time: float;
         mutable last_tick_time: float;
         (* players, map *)
-        mutable p0: player;
-        mutable p1: player;
+        mutable player_0: player_data;
+        mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: pos option;
         mutable path_data: path_data option;
         (* turn *)
         mutable turn_data: turn_data }
 
-    and player =
-      { pl_color: int;
+    and player_data =
+      { (* user info *)
+        pl_color: int;
         pl_face: int;
-        pl_pos: pos;
         pl_name: string;
+        (* player state *)
         pl_hp: int;
         pl_item: item_type;
         pl_alt_item: item_type option;
-        pl_switching: bool }
+        pl_switching: bool;
+        (* map state *)
+        pl_pos: pos }
 
 (*
     and item =
@@ -112,6 +115,10 @@ module Make
 
     (*** processing game state data ***)
 
+    let update_player_data (pl: Player.t) (pl': Player.t) pd =
+      ignore pl;
+      { pd with pl_pos = pl'.pos }
+
     let path_data_of_path Path.{ pos; dir; rev; s_dis; d_dis } =
       { pa_pos = pos;
         pa_s_dis = s_dis;
@@ -130,9 +137,12 @@ module Make
     let update_from_game game v =
       begin
         (* players, map *)
-        let pl0, pl1 = (game |> Gameplay.player_0), (game |> Gameplay.player_1) in
-        v.p0 <- { v.p0 with pl_pos = pl0.pos };
-        v.p1 <- { v.p1 with pl_pos = pl1.pos };
+        v.player_0 <- v.player_0 |> update_player_data
+                                      (v.game |> Gameplay.player_0)
+                                      (game |> Gameplay.player_0);
+        v.player_1 <- v.player_1 |> update_player_data
+                                     (v.game |> Gameplay.player_1)
+                                     (game |> Gameplay.player_1);
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
         v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
@@ -156,8 +166,8 @@ module Make
         pl_hp = 16;
         pl_item = `S;
         pl_alt_item = None;
-        pl_pos = (0, 0);
-        pl_switching = false }
+        pl_switching = false;
+        pl_pos = (0, 0) }
 
     let make assets game =
       let v0 =
@@ -167,8 +177,8 @@ module Make
           anim_time = 0.;
           last_tick_time = 0.;
           (* players, map *)
-          p0 = default_player 0 0 "Player One";
-          p1 = default_player 3 2 "Player Two";
+          player_0 = default_player 0 0 "Player One";
+          player_1 = default_player 3 2 "Player Two";
           (* cursor, path *)
           cursor = None;
           path_data = None;
@@ -363,12 +373,12 @@ module Make
                ~ys:[| y0; y0; y1; y1; y0 |])
 
     let render_hud ~t cx
-          { assets; p0; p1; turn_data; _ }
+          { assets; player_0; player_1; turn_data; _ }
       =
       begin
         render_hud_bg ~t cx;
-        render_hud_player ~assets ~t cx 0 p0;
-        render_hud_player ~assets ~t cx 1 p1;
+        render_hud_player ~assets ~t cx 0 player_0;
+        render_hud_player ~assets ~t cx 1 player_1;
         render_hud_turn ~assets ~t cx turn_data
       end
 
@@ -553,14 +563,14 @@ module Make
        *)
 
     let render_map_elements ~t cx
-          { assets; p0; p1; _ }
+          { assets; player_0; player_1; _ }
       =
       begin
-        render_player_z0 ~assets ~t cx p0;
-        render_player_z0 ~assets ~t cx p1;
+        render_player_z0 ~assets ~t cx player_0;
+        render_player_z0 ~assets ~t cx player_1;
         (* List.iter (render_item ~assets ~t cx) items; *)
-        render_player_z1 ~assets ~t cx p0;
-        render_player_z1 ~assets ~t cx p1;
+        render_player_z1 ~assets ~t cx player_0;
+        render_player_z1 ~assets ~t cx player_1;
       end
 
     (* -- main entry point -- *)
