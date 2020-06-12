@@ -31,6 +31,9 @@ let[@ocaml.inline] from_points ~src:(x0, y0) ~tgt:(x1, y1) =
     ~dx:(x1 - x0)
     ~dy:(y1 - y0)
 
+let[@ocaml.inline] none ~src =
+  from_origin ~pos:src ~dx:0 ~dy:0
+
 let string_of_cardinal = function
   | S -> "S" | N -> "N" | E -> "E" | W -> "W" [@@ocaml.inline]
 
@@ -60,3 +63,9 @@ let target { pos; dir; rev; s_dis; d_dis } =
   match dir |> cardinal_axis with
   | X -> x0 + s + d1, y0 + d2
   | Y -> x0 + d2, y0 + s + d1
+
+let sqrt_2 = 1.4142135623730951
+
+let length { s_dis; d_dis; _ } =
+  float_of_int s_dis
+  +. float_of_int d_dis *. sqrt_2

@@ -1,8 +1,10 @@
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
-module Rules = Dia_game.Rules
 module Path = Dia_game.Path
+module Player = Dia_game.Gameplay.Player
+module Rules = Dia_game.Rules
+module Turn = Dia_game.Gameplay.Turn
 
 module type S =
   View.S with type init = Gameplay.t
@@ -118,25 +120,26 @@ module Make
         pa_d_sgn = rev |> Path.revolution_sign ~dir;
         pa_axis = dir |> Path.cardinal_axis }
 
-    let turn_data_of_turn Gameplay.{ tn_num; tn_frame } =
-      { tn_num;
-        tn_time_left = float_of_int (Rules.turn_frames - tn_frame)
+    let turn_data_of_turn Turn.{ num; frame } =
+      { tn_num = num;
+        tn_time_left = float_of_int (Rules.turn_frames - frame)
                        /. Rules.fps_fl;
-        tn_amt_left  = float_of_int (Rules.turn_frames - tn_frame)
+        tn_amt_left  = float_of_int (Rules.turn_frames - frame)
                        /. float_of_int Rules.turn_frames }
 
     let update_from_game game v =
       begin
-        v.game <- game;
         (* players, map *)
-        let pl0, pl1 = game |> Gameplay.player_0, game |> Gameplay.player_1 in
-        v.p0 <- { v.p0 with pl_pos = (pl0.pl_x, pl0.pl_y) };
-        v.p1 <- { v.p1 with pl_pos = (pl1.pl_x, pl1.pl_y) };
+        let pl0, pl1 = (game |> Gameplay.player_0), (game |> Gameplay.player_1) in
+        v.p0 <- { v.p0 with pl_pos = pl0.pos };
+        v.p1 <- { v.p1 with pl_pos = pl1.pos };
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
         v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
         (* turn *)
         v.turn_data <- game |> Gameplay.turn |> turn_data_of_turn;
+        (* *)
+        v.game <- game;
       end
 
     let update_game f v =
@@ -176,13 +179,13 @@ module Make
 
     (*** event handling ***)
 
-    let frame_dt = 1. /. Rules.fps_fl
+    let f_dt = Rules.frame_time
 
     let update time v =
       let rec tick time0 =
-        if time > time0 +. frame_dt then
+        if time > time0 +. f_dt then
           ( v |> update_game Gameplay.tick;
-            tick (time0 +. frame_dt) )
+            tick (time0 +. f_dt) )
         else
           v.last_tick_time <- time0
       in

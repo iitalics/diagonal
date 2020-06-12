@@ -1,93 +1,135 @@
+module Turn = struct
+  type t = { num: int; frame: int }
+end
+
+module Pos = struct
+  type t = int * int
+end
+
+module Player = struct
+  type t = { pos: Pos.t }
+end
+
+module Phase = struct
+end
+
 type t =
-  { tn: turn;
-    pl0: player;
-    pl1: player;
-    cx: int;
-    cy: int }
+  { pl0: Player.t;
+    pl1: Player.t;
+    turn_num: int;
+    phase: phase;
+    f: int }
 
-and turn =
-  { tn_num: int;
-    tn_frame: int }
-
-and player =
-  { pl_x: int;
-    pl_y: int }
+and phase =
+  | Turn of { cu: Pos.t }
+  | Move of { pa0: Path.t }
 
 let make () =
-  { tn = { tn_num = 0; tn_frame = 0; };
-    pl0 = { pl_x = 3; pl_y = 3 };
-    pl1 = { pl_x = 6; pl_y = 7 };
-    cx = 3; cy = 3 }
+  { pl0 = Player.{ pos = (3, 3) };
+    pl1 = Player.{ pos = (6, 7) };
+    turn_num = 1;
+    phase = Turn { cu = (3, 3) };
+    f = 0 }
 
-let grid_clamp v = v |> max 0 |> min (Rules.grid_cols - 1)
+(* players *)
 
-(* player *)
-
-let player_pos { pl_x; pl_y } = (pl_x, pl_y)
 let player_0 t = t.pl0
 let player_1 t = t.pl1
 
+(* phases, turns *)
+
+type phase_action =
+  | No_op
+  | Animate_player_0 of Path.t
+  | Move_players of Pos.t * Pos.t
+
+let path_anim_frames path =
+  int_of_float @@
+    ceil ((path |> Path.length) *. Rules.move_rate)
+
+let update_phase t = match t.phase with
+  | Turn { cu } when (t.f >= Rules.turn_frames) ->
+     let path = Path.from_points
+                  ~src:t.pl0.pos
+                  ~tgt:cu in
+     (Move { pa0 = path }),
+     Animate_player_0(path)
+
+  | Move { pa0 } when (t.f >= (pa0 |> path_anim_frames)) ->
+     let tgt0 = pa0 |> Path.target in
+     let tgt1 = t.pl1.pos in
+     (Turn { cu = tgt0 }),
+     Move_players(tgt0, tgt1)
+
+  | phase ->
+     phase, No_op
+
+let apply_phase_action t = function
+  | No_op -> t
+  | Animate_player_0(_pa) ->
+     { t with
+       f = 0 }
+  | Move_players(pos0, pos1) ->
+     { t with
+       turn_num = t.turn_num + 1;
+       f = 0;
+       pl0 = Player.{ pos = pos0 };
+       pl1 = Player.{ pos = pos1 } }
+
+let turn t =
+  let num = t.turn_num in
+  let frame = match t.phase with
+    | Turn _ -> t.f
+    | Move _ -> Rules.turn_frames in
+  Turn.{ num; frame }
+
 (* cursor *)
 
-let move_cursor_to cx cy t =
-  { t with cx; cy }
+let cursor t =
+  match t.phase with
+  | Turn { cu } -> Some(cu)
+  | Move _ -> None
 
-let move_cursor_by dx dy t =
-  t |> move_cursor_to
-         (grid_clamp (t.cx + dx))
-         (grid_clamp (t.cy + dy))
+let path t =
+  match t.phase with
+  | Turn { cu } -> Some(Path.from_points
+                          ~src:t.pl0.pos
+                          ~tgt:cu)
+  | Move { pa0 } -> Some(pa0)
 
-let reset_cursor t =
-  let { pl_x; pl_y } = t.pl0 in
-  t |> move_cursor_to pl_x pl_y
+let grid_clamp x =
+  x |> max 0 |> min (Rules.grid_cols - 1)
 
-let cursor' t =
-  (t.cx, t.cy)
+let[@ocaml.inline] move_cursor_by dx dy t =
+  match t.phase with
+  | Turn { cu = (cx, cy) } ->
+     let cu' = (grid_clamp (cx + dx),
+                grid_clamp (cy + dy)) in
+     { t with phase = Turn { cu = cu' } }
+  | Move _ ->
+     t
 
-let path' t =
-  Path.from_points
-    ~src:(t.pl0 |> player_pos)
-    ~tgt:(t.cx, t.cy)
+let[@ocaml.inline] reset_cursor t =
+  match t.phase with
+  | Turn { cu = _ } ->
+     { t with phase = Turn { cu = t.pl0.pos } }
+  | Move _ ->
+     t
 
-let is_cursor_active t =
-  (t |> cursor') <> (t.pl0 |> player_pos)
-
-let cursor t = if t |> is_cursor_active then Some(t |> cursor') else None
-let path t = if t |> is_cursor_active then Some(t |> path') else None
-
-(* turn *)
-
-let tick_turn { tn_num = n; tn_frame = f } =
-  let f' = f + 1 in
-  if f' >= Rules.turn_frames then
-    { tn_num = n + 1; tn_frame = 0 }, true
-  else
-    { tn_num = n; tn_frame = f' }, false
-
-let end_turn t =
-  let (p_x, p_y) = t |> path' |> Path.target in
-  let t = { t with pl0 = { pl_x = p_x; pl_y = p_y } } in
-  t |> reset_cursor
-
-let turn t = t.tn
-
-(* tick *)
+(* events *)
 
 let tick t =
-  let tn, ended = t.tn |> tick_turn in
-  let t = { t with tn } in
-  if ended then
-    t |> end_turn
-  else
-    t
+  let t = { t with f = t.f + 1 } in
+  let phase, action = update_phase t in
+  action |> apply_phase_action { t with phase }
 
-(* key events *)
+let key_dn : Input.Key.t -> _ = function
+  | Up    -> move_cursor_by 0 (-1)
+  | Down  -> move_cursor_by 0 (+1)
+  | Left  -> move_cursor_by (-1) 0
+  | Right -> move_cursor_by (+1) 0
+  | Esc   -> reset_cursor
 
-let key_dn k t = match k with
-  | Input.Key.Left  -> t |> move_cursor_by (-1) 0
-  | Input.Key.Right -> t |> move_cursor_by (+1) 0
-  | Input.Key.Up    -> t |> move_cursor_by 0 (-1)
-  | Input.Key.Down  -> t |> move_cursor_by 0 (+1)
-  | Input.Key.Esc   -> t |> reset_cursor
-
-let key_up _ t = t
+let key_up _k t =
+  (* TODO: DAS'ing *)
+  t
