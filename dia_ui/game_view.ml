@@ -5,6 +5,7 @@ module Path = Dia_game.Path
 module Player = Dia_game.Gameplay.Player
 module Rules = Dia_game.Rules
 module Turn = Dia_game.Gameplay.Turn
+module Item_type = Dia_game.Item_type
 
 module type S =
   View.S with type init = Gameplay.t
@@ -62,7 +63,6 @@ module Make
     (*** init ***)
 
     type pos = int * int
-    type item_type = [ `S | `F | `P | `H ]
 
     type t =
       { assets: assets;
@@ -86,8 +86,8 @@ module Make
         pl_name: string;
         (* player state *)
         pl_hp: int;
-        pl_item: item_type;
-        pl_alt_item: item_type option;
+        pl_item: Item_type.t;
+        pl_alt_item: Item_type.t option;
         (* map state *)
         pl_pos: pos;
         pl_anim: player_anim }
