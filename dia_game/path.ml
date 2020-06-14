@@ -31,9 +31,6 @@ let[@ocaml.inline] from_points ~src:(x0, y0) ~tgt:(x1, y1) =
     ~dx:(x1 - x0)
     ~dy:(y1 - y0)
 
-let[@ocaml.inline] none ~src =
-  from_origin ~pos:src ~dx:0 ~dy:0
-
 let string_of_cardinal = function
   | S -> "S" | N -> "N" | E -> "E" | W -> "W" [@@ocaml.inline]
 
@@ -69,3 +66,9 @@ let sqrt_2 = 1.4142135623730951
 let length { s_dis; d_dis; _ } =
   float_of_int s_dis
   +. float_of_int d_dis *. sqrt_2
+
+let[@ocaml.inline] null ~src =
+  from_origin ~pos:src ~dx:0 ~dy:0
+
+let is_null { s_dis; d_dis; _ } =
+  s_dis = 0 && d_dis = 0

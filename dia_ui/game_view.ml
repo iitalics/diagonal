@@ -134,6 +134,7 @@ module Make
         else
           match pl'.anim with
           | Player.No_anim -> Player_idle
+          | Player.Moving np when np |> Path.is_null -> Player_idle
           | Player.Moving path ->
              let (sx, sy) = path |> Path.source in
              let (tx, ty) = path |> Path.target in
@@ -141,8 +142,7 @@ module Make
              let dt = (path |> Path.length) *. Rules.move_rate /. Rules.fps_fl in
              (* x(t)       = x0 + t * x_v
                 x(t0)      = x0 + t0 * x_v         = 0
-                x(t0 + dt) = x0 + (t0 + dt) * x_v  = dx
-              *)
+                x(t0 + dt) = x0 + (t0 + dt) * x_v  = dx  *)
              let x_v, y_v = float_of_int dx /. dt, float_of_int dy /. dt in
              let x0, y0 = ~-. t0 *. x_v, ~-. t0 *. y_v in
              Player_move { x0; y0; x_v; y_v }
