@@ -30,42 +30,41 @@ module Make
       include Util.Applicative(Rsrc)
     end
 
-    open Draw
+    module Ctxt = Draw.Ctxt
+    module Color = Draw.Color
+    module Font = Draw.Font
+    module Image = Draw.Image
+
+    module HUD = Hud.Make(Draw)(Rsrc)
 
     (*** assets ***)
 
-    type assets =
+    type game_assets =
       { sprites: Image.t;
-        map:     Image.t;
-        hud_p_name:   Font.t;
-        hud_act_item: Font.t;
-        hud_turn:     Font.t }
+        map:     Image.t }
 
-    let assets_rsrc =
+    let game_assets_rsrc =
       let images =
         Rsrc.(all [ image ~path:"sprites";
                     image ~path:"map_stone" ])
       in
-      let fonts =
-        Rsrc.(all [ font ~family:"space_mono" ~size:24;
-                    font ~family:"space_mono" ~size:15;
-                    font ~family:"space_mono_bold" ~size:16 ])
-      in
-      Rsrc.map2
+      Rsrc.map
         (fun[@ocaml.warning "-8"]
             [ sprites; map ]
-            [ hud_p_name; hud_act_item; hud_turn ]
          ->
-          { sprites; map; hud_p_name; hud_act_item; hud_turn })
+          { sprites; map })
         images
-        fonts
+
+    type assets = game_assets * HUD.assets
+    let assets_rsrc = Rsrc.both game_assets_rsrc HUD.assets_rsrc
 
     (*** init ***)
 
     type pos = int * int
 
     type t =
-      { assets: assets;
+      { assets: game_assets;
+        hud: HUD.t;
         mutable game: Gameplay.t;
         (* animations *)
         mutable anim_time: float;
@@ -75,19 +74,13 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: pos option;
-        mutable path_data: path_data option;
-        (* turn *)
-        mutable turn_data: turn_data }
+        mutable path_data: path_data option }
 
     and player_data =
       { (* user info *)
         pl_color: int;
         pl_face: int;
         pl_name: string;
-        (* player state *)
-        pl_hp: int;
-        pl_item: Item_type.t;
-        pl_alt_item: Item_type.t option;
         (* map state *)
         pl_pos: pos;
         pl_anim: player_anim }
@@ -107,15 +100,6 @@ module Make
         pa_s_sgn: int;
         pa_d_sgn: int;
         pa_axis: Path.axis }
-
-    and turn_data =
-      { tn_num: int;
-        tn_time: float;
-        (* amt(t) = amt0 + t * amt_v *)
-        tn_amt0: float;
-        tn_amt_v: float }
-
-    let max_hp = 16
 
     (*** processing game state data ***)
 
@@ -153,21 +137,11 @@ module Make
                pa_s_sgn = y_sgn; pa_d_sgn = x_sgn;
                pa_axis = Y }
 
-    let turn_frames_fl = float_of_int Rules.turn_frames
-    let turn_amt_v = ~-. Rules.fps_fl /. turn_frames_fl (* 1/sec *)
-
-    let turn_data_of_turn ~time:t0 (tn: Turn.t) =
-      let rem_f = Rules.turn_frames - tn.frame in
-      let time  = float_of_int rem_f /. Rules.fps_fl in
-      let amt   = float_of_int rem_f /. turn_frames_fl in
-      (* amt(t) = amt0 + t * amt_v  ==>  amt0 = amt(t) - t * amt_v *)
-      { tn_num = tn.num; tn_time = time;
-        tn_amt0 = amt -. t0 *. turn_amt_v;
-        tn_amt_v = turn_amt_v }
-
     let update_from_game game v =
       let time = v.last_tick_time in
       begin
+        (* hud *)
+        v.hud |> HUD.update_game ~tick_time:time game;
         (* players, map *)
         v.player_0 <- v.player_0 |> update_player_data ~time
                                       (v.game |> Gameplay.player_0)
@@ -178,8 +152,6 @@ module Make
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
         v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
-        (* turn *)
-        v.turn_data <- game |> Gameplay.turn |> turn_data_of_turn ~time;
         (* *)
         v.game <- game;
       end
@@ -195,16 +167,14 @@ module Make
       { pl_color = color;
         pl_face = face;
         pl_name = name;
-        pl_hp = 16;
-        pl_item = `S;
-        pl_alt_item = None;
         pl_pos = (0, 0);
         pl_anim = Player_idle }
 
-    let make assets game =
+    let make (assets, hud_assets) game =
       let v0 =
         { assets;
           game;
+          hud = HUD.make hud_assets game;
           (* animations *)
           anim_time = 0.;
           last_tick_time = 0.;
@@ -213,9 +183,7 @@ module Make
           player_1 = default_player 3 2 "Player Two";
           (* cursor, path *)
           cursor = None;
-          path_data = None;
-          (* turn *)
-          turn_data = { tn_num = -1; tn_time = 0.; tn_amt0 = 0.; tn_amt_v = 0. } }
+          path_data = None }
       in
       v0 |> update_from_game game;
       v0
@@ -225,6 +193,7 @@ module Make
     let f_dt = Rules.frame_time
 
     let update t v =
+      v.hud |> HUD.update_time t;
       v.anim_time <- t;
       let tick_t = v.last_tick_time +. f_dt in
       if t > tick_t then
@@ -253,161 +222,6 @@ module Make
     (*** rendering ***)
 
     let bg_c   = Color.of_rgb_s "#5cf"
-
-    (* -- rendering the HUD -- *)
-
-    let hud_bg_c = Color.(of_rgb_s "#000" |> with_alpha 0.5)
-    let hud_c    = Color.of_rgb_s "#fff"
-    let hud_w = 800
-    let hud_h = 128
-    let hud_y = 30
-    let hud_left = 9
-    let hud_top = 8
-    let hud_hpbar_fill_c = Color.[| of_rgb_s "#04f"; of_rgb_s "#f04" |]
-    let hud_hpbar_y = 36
-    let hud_hpbar_w = 386
-    let hud_hpbar_h = 20
-    let hud_item_x  = 56 (* 32 *)
-    let hud_item_y  = 84
-    let hud_item_scale = 0.8
-    let hud_item_alt_dx = 110 (* 80 *)
-    let hud_item_alt_dy = 0
-    let hud_item_alt_scale = 0.65
-    let hud_item_act_text = "active item"
-    let hud_item_act_text_c = Color.of_rgb_s "#ff0"
-    let hud_item_act_text_dy = 24
-    let hud_item_alt_text = "secondary"
-    let hud_item_alt_text_c = Color.of_rgb_s "#111"
-    let hud_item_alt_text_dy = 20
-    let hud_turn_x = hud_w / 2
-    let hud_turn_y = 78
-    let hud_turn_bar_w = 160
-    let hud_turn_bar_h = 12
-    let hud_turn_bar_dy = 20
-    let hud_turn_bar_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.6)
-
-    let render_icon_img ~assets ?t cx ty =
-      let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
-      cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ?t
-              ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
-
-    let render_hud_bg ~t cx =
-      cx |> Ctxt.vertices `Fill
-              ~t ~c:hud_bg_c
-              ~xs:[| 0; hud_w; hud_w; 0     |]
-              ~ys:[| 0; 0;     hud_h; hud_h |]
-
-    let render_hud_player ~assets ~t cx i
-          { pl_name; pl_hp; pl_item; pl_alt_item; _ }
-      =
-      (* player name *)
-      (let font = assets.hud_p_name in
-       let (mes_w, _) = font |> Font.measure pl_name in
-       let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_left
-               +     i * (hud_w - hud_left))
-              hud_top;
-       cx |> Ctxt.text pl_name ~t ~c:hud_c ~font
-               ~x:(i * -mes_w)
-               ~y:0);
-
-      (* hp bar *)
-      (let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_left
-               +     i * (hud_w - hud_hpbar_w - hud_left))
-              hud_hpbar_y;
-       let w  = hud_hpbar_w in
-       let w' = hud_hpbar_w * pl_hp / max_hp in
-       let h  = hud_hpbar_h in
-       cx |> Ctxt.vertices `Fill
-               ~t ~c:hud_hpbar_fill_c.(i)
-               ~xs:[| 0; w'; w'; 0 |]
-               ~ys:[| 0; 0; h; h |];
-       cx |> Ctxt.vertices `Strip
-               ~t ~c:hud_c
-               ~xs:[| 0; w; w; 0; 0 |]
-               ~ys:[| 0; 0; h; h; 0 |]);
-
-      (* items *)
-      (let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_item_x
-               +     i * (hud_w - hud_item_x))
-              hud_item_y;
-
-       (* primary item *)
-       (let item = pl_item in
-        let t = Affine.extend t in
-        t |> Affine.scale hud_item_scale hud_item_scale;
-        render_icon_img ~assets ~t cx item);
-
-       (* active item text *)
-       (let font = assets.hud_act_item in
-        let (mes_w, _) = font |> Font.measure hud_item_act_text in
-        cx |> Ctxt.text hud_item_act_text
-                ~t ~font ~c:hud_item_act_text_c
-                ~x:(-mes_w / 2)
-                ~y:hud_item_act_text_dy);
-
-       pl_alt_item |>
-         Option.iter (fun item ->
-             (* alt item *)
-             (let t = Affine.extend t in
-              t |> Affine.translate_i
-                     ((1 - 2 * i) * hud_item_alt_dx)
-                     hud_item_alt_dy;
-              t |> Affine.scale
-                     hud_item_alt_scale hud_item_alt_scale;
-              render_icon_img ~assets ~t cx item);
-
-             (* alt item text *)
-             (let font = assets.hud_act_item in
-              let (mes_w, _) = font |> Font.measure hud_item_alt_text in
-              cx |> Ctxt.text hud_item_alt_text
-                      ~t ~font ~c:hud_item_alt_text_c
-                      ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
-                      ~y:(hud_item_alt_text_dy))))
-
-    let render_hud_turn ~assets ~anim_time ~t cx
-          { tn_num; tn_time; tn_amt0; tn_amt_v }
-      =
-      let t = Affine.extend t in
-      t |> Affine.translate_i hud_turn_x hud_turn_y;
-
-      (* timer text *)
-      (let text = Printf.sprintf "turn %d (%.1fs)" tn_num tn_time in
-       let font = assets.hud_turn in
-       let (mes_w, _) = font |> Font.measure text in
-       cx |> Ctxt.text text
-               ~t ~font ~c:hud_c
-               ~x:(-mes_w / 2) ~y:0);
-
-      (* timer bar *)
-      (let amt = max 0. (tn_amt0 +. anim_time *. tn_amt_v) in
-       let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
-       let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
-       cx |> Ctxt.vertices `Fill
-               ~t ~c:hud_turn_bar_fill_c
-               ~xs:[| x0; x1'; x1'; x0 |]
-               ~ys:[| y0;  y0;  y1; y1 |];
-       cx |> Ctxt.vertices `Strip
-               ~t ~c:hud_c
-               ~xs:[| x0; x1; x1; x0; x0 |]
-               ~ys:[| y0; y0; y1; y1; y0 |])
-
-    let render_hud ~t cx
-          { assets; player_0; player_1; turn_data; _ }
-      =
-      begin
-        render_hud_bg ~t cx;
-        render_hud_player ~assets ~t cx 0 player_0;
-        render_hud_player ~assets ~t cx 1 player_1;
-        render_hud_turn ~assets ~t cx turn_data
-      end
 
     (* -- rendering the map -- *)
 
@@ -571,8 +385,6 @@ module Make
     (* -- main entry point -- *)
 
     let render cx v : unit =
-      let anim_time = v.anim_time in
-
       let (cx_w, _) = cx |> Ctxt.size in
       cx |> Ctxt.clear ~c:bg_c;
 
@@ -582,17 +394,12 @@ module Make
                  ((cx_w - map_w) / 2)
                  map_y;
 
-      (* transform for the HUD *)
-      let hud_t = Affine.make () in
-      hud_t |> Affine.translate_i
-                 ((cx_w - hud_w) / 2)
-                 hud_y;
-
       (* draw stuff *)
       begin
         v |> render_map ~t:map_t cx;
         v |> render_grid_elements ~t:map_t cx;
         v |> render_map_elements ~t:map_t cx;
-        v |> render_hud ~anim_time ~t:hud_t cx;
+        v.hud |> HUD.render cx;
+        ()
       end
   end
