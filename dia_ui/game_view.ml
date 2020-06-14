@@ -108,14 +108,16 @@ module Make
 
     and turn_data =
       { tn_num: int;
-        tn_time_left: float;
-        tn_amt_left: float }
+        tn_time: float;
+        (* amt(t) = amt0 + t * amt_v *)
+        tn_amt0: float;
+        tn_amt_v: float }
 
     let max_hp = 16
 
     (*** processing game state data ***)
 
-    let update_player_data (pl: Player.t) (pl': Player.t) pd =
+    let update_player_data (pl: Player.t) (pl': Player.t) (pd: player_data) =
       ignore pl;
       { pd with pl_pos = pl'.pos }
 
@@ -127,27 +129,33 @@ module Make
         pa_d_sgn = rev |> Path.revolution_sign ~dir;
         pa_axis = dir |> Path.cardinal_axis }
 
-    let turn_data_of_turn Turn.{ num; frame } =
-      { tn_num = num;
-        tn_time_left = float_of_int (Rules.turn_frames - frame)
-                       /. Rules.fps_fl;
-        tn_amt_left  = float_of_int (Rules.turn_frames - frame)
-                       /. float_of_int Rules.turn_frames }
+    let turn_frames_fl = float_of_int Rules.turn_frames
+    let turn_amt_v = ~-. Rules.fps_fl /. turn_frames_fl (* 1/sec *)
+
+    let turn_data_of_turn ~time:t (tn: Turn.t) =
+      let rem_f = Rules.turn_frames - tn.frame in
+      let time  = float_of_int rem_f /. Rules.fps_fl in
+      let amt   = float_of_int rem_f /. turn_frames_fl in
+      (* amt(t) = amt0 + t * amt_v  ==>  amt0 = amt(t) - t * amt_v *)
+      { tn_num = tn.num; tn_time = time;
+        tn_amt0 = amt -. t *. turn_amt_v;
+        tn_amt_v = turn_amt_v }
 
     let update_from_game game v =
+      let time = v.last_tick_time in
       begin
         (* players, map *)
         v.player_0 <- v.player_0 |> update_player_data
                                       (v.game |> Gameplay.player_0)
                                       (game |> Gameplay.player_0);
         v.player_1 <- v.player_1 |> update_player_data
-                                     (v.game |> Gameplay.player_1)
-                                     (game |> Gameplay.player_1);
+                                      (v.game |> Gameplay.player_1)
+                                      (game |> Gameplay.player_1);
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
         v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
         (* turn *)
-        v.turn_data <- game |> Gameplay.turn |> turn_data_of_turn;
+        v.turn_data <- game |> Gameplay.turn |> turn_data_of_turn ~time;
         (* *)
         v.game <- game;
       end
@@ -183,24 +191,21 @@ module Make
           cursor = None;
           path_data = None;
           (* turn *)
-          turn_data = { tn_num = 0; tn_time_left = 0.; tn_amt_left = 0. } }
+          turn_data = { tn_num = -1; tn_time = 0.; tn_amt0 = 0.; tn_amt_v = 0. } }
       in
-      v0 |> update_from_game game; v0
+      v0 |> update_from_game game;
+      v0
 
     (*** event handling ***)
 
     let f_dt = Rules.frame_time
 
-    let update time v =
-      let rec tick time0 =
-        if time > time0 +. f_dt then
-          ( v |> update_game Gameplay.tick;
-            tick (time0 +. f_dt) )
-        else
-          v.last_tick_time <- time0
-      in
-      v.anim_time <- time;
-      tick v.last_tick_time
+    let update t v =
+      v.anim_time <- t;
+      let tick_t = v.last_tick_time +. f_dt in
+      if t > tick_t then
+        ( v.last_tick_time <- tick_t;
+          v |> update_game Gameplay.tick )
 
     let handle_evt evt v =
       let input_of_key_code = function
@@ -345,14 +350,14 @@ module Make
                       ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
                       ~y:(hud_item_alt_text_dy))))
 
-    let render_hud_turn ~assets ~t cx
-          { tn_num; tn_time_left; tn_amt_left }
+    let render_hud_turn ~assets ~anim_time ~t cx
+          { tn_num; tn_time; tn_amt0; tn_amt_v }
       =
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
       (* timer text *)
-      (let text = Printf.sprintf "turn %d (%.1fs)" tn_num tn_time_left in
+      (let text = Printf.sprintf "turn %d (%.1fs)" tn_num tn_time in
        let font = assets.hud_turn in
        let (mes_w, _) = font |> Font.measure text in
        cx |> Ctxt.text text
@@ -360,9 +365,10 @@ module Make
                ~x:(-mes_w / 2) ~y:0);
 
       (* timer bar *)
-      (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
+      (let amt = max 0. (tn_amt0 +. anim_time *. tn_amt_v) in
+       let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. tn_amt_left) in
+       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]
@@ -575,7 +581,9 @@ module Make
 
     (* -- main entry point -- *)
 
-    let render cx v =
+    let render cx v : unit =
+      let anim_time = v.anim_time in
+
       let (cx_w, _) = cx |> Ctxt.size in
       cx |> Ctxt.clear ~c:bg_c;
 
@@ -596,6 +604,6 @@ module Make
         v |> render_map ~t:map_t cx;
         v |> render_grid_elements ~t:map_t cx;
         v |> render_map_elements ~t:map_t cx;
-        v |> render_hud ~t:hud_t cx;
+        v |> render_hud ~anim_time ~t:hud_t cx;
       end
   end
