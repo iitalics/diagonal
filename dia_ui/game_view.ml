@@ -149,13 +149,16 @@ module Make
       in
       { pd with pl_pos; pl_anim }
 
-    let path_data_of_path Path.{ pos; dir; rev; s_dis; d_dis } =
-      { pa_pos = pos;
-        pa_s_dis = s_dis;
-        pa_d_dis = d_dis;
-        pa_s_sgn = dir |> Path.cardinal_sign;
-        pa_d_sgn = rev |> Path.revolution_sign ~dir;
-        pa_axis = dir |> Path.cardinal_axis }
+    let path_data_of_path Path.{ pos; x_sgn; y_sgn; s_dis; d_dis; axis } =
+      match axis with
+      | X -> { pa_pos = pos;
+               pa_s_dis = s_dis; pa_d_dis = d_dis;
+               pa_s_sgn = x_sgn; pa_d_sgn = y_sgn;
+               pa_axis = X }
+      | Y -> { pa_pos = pos;
+               pa_s_dis = s_dis; pa_d_dis = d_dis;
+               pa_s_sgn = y_sgn; pa_d_sgn = x_sgn;
+               pa_axis = Y }
 
     let turn_frames_fl = float_of_int Rules.turn_frames
     let turn_amt_v = ~-. Rules.fps_fl /. turn_frames_fl (* 1/sec *)
