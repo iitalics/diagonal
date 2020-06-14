@@ -34,19 +34,26 @@ module Make_views
         type draw_ctxt = Draw.Ctxt.t
         type 'a rsrc = 'a Rsrc.t
         include Menu_assets
-
-        (* init *)
+        open Draw
 
         type t =
           { assets: assets;
+            geom: geom;
             mutable hov: int;
             mutable sel: bool }
 
-        type init = unit
-        let make assets _init =
-          { assets;
-            hov = 0;
-            sel = false }
+        and geom =
+          { height: int;
+            main_t: Affine.t;
+            title_t: Affine.t;
+            item_ts: Affine.t array }
+
+        (* labels *)
+
+        let title_text = "Diag"
+        let item_text = [ "Single player mode";
+                          "Change Controls";
+                          "Change Character" ]
 
         (* event handling *)
 
@@ -66,43 +73,80 @@ module Make_views
                                ~init:(Gameplay.make ())
               | _ -> () )
 
-        (* rendering *)
-
-        let bg_c       = Draw.Color.of_rgb_s "#8df"
-        let title_c    = Draw.Color.of_rgb_s "#000"
-        let item_c     = Draw.Color.of_rgb_s "#fff"
-        let item_hov_c = Draw.Color.of_rgb_s "#064"
+        (* geometry *)
 
         let title_ypad = 20
         let item_ypad = 8
 
-        let title_text = "Diag"
-        let item_text = [ "Single player mode";
-                          "Change Controls";
-                          "Change Character" ]
+        let make_geom ~assets =
+          let main_t = Affine.make () in
+          (* title transform *)
+          let (title_t, y) =
+            let t = main_t |> Affine.extend in
+            let (mes_w, mes_h) = assets.title_font |> Font.measure title_text in
+            t |> Affine.translate_i (- mes_w / 2) 0;
+            (t, mes_h + title_ypad)
+          in
+          (* items transform *)
+          let (item_ts_rev, y) =
+            List.fold_left
+              (fun (ts, y) text ->
+                let t = main_t |> Affine.extend in
+                let (mes_w, mes_h) = assets.item_font |> Draw.Font.measure text in
+                t |> Affine.translate_i (- mes_w / 2) y;
+                (t :: ts, y + mes_h + item_ypad))
+              ([], y)
+              item_text
+          in
+          let height = y - item_ypad in
+          { height; main_t; title_t;
+            item_ts = Array.of_list (List.rev item_ts_rev) }
 
-        let render_title assets (w, h) cx =
-          let (mes_w, mes_h) = assets.title_font |> Draw.Font.measure title_text in
-          let x, y = (w - mes_w) / 2, (h - mes_h) / 2 in
-          cx |> Draw.Ctxt.text title_text
-                  ~x ~y ~c:title_c ~font:assets.title_font;
-          let y = y + mes_h + title_ypad in
-          y
+        let update_geom (cx_w, cx_h) ge =
+          let t = ge.main_t in
+          t |> Affine.reset;
+          t |> Affine.translate_i
+                 (cx_w / 2)
+                 ((cx_h - ge.height) / 2)
 
-        let render_item assets hov_i (w, _) cx (i, y) text =
-          let (mes_w, mes_h) = assets.item_font |> Draw.Font.measure text in
-          let x = (w - mes_w) / 2 in
-          cx |> Draw.Ctxt.text text
-                  ~x ~y ~font:assets.item_font
-                  ~c:(if i = hov_i then item_hov_c else item_c);
-          let y = y + mes_h + item_ypad in
-          (i + 1, y)
+        (* rendering *)
 
-        let render cx v =
-          let size = cx |> Draw.Ctxt.size in
-          cx |> Draw.Ctxt.clear ~c:bg_c;
-          let y = cx |> render_title v.assets size in
-          let y = List.fold_left (render_item v.assets v.hov size cx) (0, y) item_text in
-          ignore y
+        let bg_c       = Color.of_rgb_s "#8df"
+        let title_c    = Color.of_rgb_s "#000"
+        let item_c     = Color.of_rgb_s "#fff"
+        let item_hov_c = Color.of_rgb_s "#064"
+
+        let render_title ~assets ~t cx =
+          cx |> Ctxt.text title_text
+                  ~x:0 ~y:0 ~t
+                  ~font:assets.title_font ~c:title_c
+
+        let render_item ~assets ~t cx text is_hov =
+          cx |> Ctxt.text text
+                  ~x:0 ~y:0 ~t
+                  ~font:assets.item_font
+                  ~c:(if is_hov then item_hov_c else item_c)
+
+        let render cx
+              { assets; geom; hov; _ }
+          =
+          begin
+            geom |> update_geom (cx |> Ctxt.size);
+            cx |> Ctxt.clear ~c:bg_c;
+            render_title ~assets ~t:geom.title_t cx;
+            item_text |> List.iteri
+                           (fun i text ->
+                             let t = geom.item_ts.(i) in
+                             render_item ~assets ~t cx text (hov = i));
+          end
+
+        (* init *)
+
+        type init = unit
+        let make assets _init =
+          { assets;
+            hov = 0;
+            sel = false;
+            geom = make_geom ~assets }
       end
   end
