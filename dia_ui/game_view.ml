@@ -90,7 +90,16 @@ module Make
         pl_alt_item: item_type option;
         pl_switching: bool;
         (* map state *)
-        pl_pos: pos }
+        pl_pos: pos;
+        pl_anim: player_anim }
+
+    and player_anim =
+      | Player_idle
+      | Player_move of
+          (* x(t) = x0 + t * x_v *)
+          (* y(t) = y0 + t * y_v *)
+          { x0: float; y0: float;
+            x_v: float; y_v: float }
 
 (*
     and item =
@@ -117,9 +126,28 @@ module Make
 
     (*** processing game state data ***)
 
-    let update_player_data (pl: Player.t) (pl': Player.t) (pd: player_data) =
-      ignore pl;
-      { pd with pl_pos = pl'.pos }
+    let update_player_data ~time:t0 (pl: Player.t) (pl': Player.t) (pd: player_data) =
+      let pl_pos = pl'.pos in
+      let pl_anim =
+        if pl'.anim = pl.anim then
+          pd.pl_anim
+        else
+          match pl'.anim with
+          | Player.No_anim -> Player_idle
+          | Player.Moving path ->
+             let (sx, sy) = path |> Path.source in
+             let (tx, ty) = path |> Path.target in
+             let (dx, dy) = (tx - sx), (ty - sy) in
+             let dt = (path |> Path.length) *. Rules.move_rate /. Rules.fps_fl in
+             (* x(t)       = x0 + t * x_v
+                x(t0)      = x0 + t0 * x_v         = 0
+                x(t0 + dt) = x0 + (t0 + dt) * x_v  = dx
+              *)
+             let x_v, y_v = float_of_int dx /. dt, float_of_int dy /. dt in
+             let x0, y0 = ~-. t0 *. x_v, ~-. t0 *. y_v in
+             Player_move { x0; y0; x_v; y_v }
+      in
+      { pd with pl_pos; pl_anim }
 
     let path_data_of_path Path.{ pos; dir; rev; s_dis; d_dis } =
       { pa_pos = pos;
@@ -132,23 +160,23 @@ module Make
     let turn_frames_fl = float_of_int Rules.turn_frames
     let turn_amt_v = ~-. Rules.fps_fl /. turn_frames_fl (* 1/sec *)
 
-    let turn_data_of_turn ~time:t (tn: Turn.t) =
+    let turn_data_of_turn ~time:t0 (tn: Turn.t) =
       let rem_f = Rules.turn_frames - tn.frame in
       let time  = float_of_int rem_f /. Rules.fps_fl in
       let amt   = float_of_int rem_f /. turn_frames_fl in
       (* amt(t) = amt0 + t * amt_v  ==>  amt0 = amt(t) - t * amt_v *)
       { tn_num = tn.num; tn_time = time;
-        tn_amt0 = amt -. t *. turn_amt_v;
+        tn_amt0 = amt -. t0 *. turn_amt_v;
         tn_amt_v = turn_amt_v }
 
     let update_from_game game v =
       let time = v.last_tick_time in
       begin
         (* players, map *)
-        v.player_0 <- v.player_0 |> update_player_data
+        v.player_0 <- v.player_0 |> update_player_data ~time
                                       (v.game |> Gameplay.player_0)
                                       (game |> Gameplay.player_0);
-        v.player_1 <- v.player_1 |> update_player_data
+        v.player_1 <- v.player_1 |> update_player_data ~time
                                       (v.game |> Gameplay.player_1)
                                       (game |> Gameplay.player_1);
         (* cursor, path *)
@@ -175,7 +203,8 @@ module Make
         pl_item = `S;
         pl_alt_item = None;
         pl_switching = false;
-        pl_pos = (0, 0) }
+        pl_pos = (0, 0);
+        pl_anim = Player_idle }
 
     let make assets game =
       let v0 =
@@ -393,6 +422,7 @@ module Make
     let grid_c = Color.of_rgb_s "#ccc"
 
     let cell_w = 64
+    let cell_w_fl = float_of_int cell_w
     let map_w = cell_w * Rules.grid_cols
     let map_y = 260
 
@@ -542,19 +572,22 @@ module Make
       cx |> Ctxt.image (assets |> swop_img)
               ~t ~x:(- swop_img_ox) ~y:(- swop_img_oy)
 
-    let render_player_z0 ~assets ~t cx
-          { pl_color; pl_face; pl_pos; _ }
-      =
+    let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
       t |> translate_to_grid_center pl_pos;
+      ( match pl_anim with
+        | Player_idle -> ()
+        | Player_move { x0; y0; x_v; y_v } ->
+           t |> Affine.translate
+                  ((x0 +. anim_time *. x_v) *. cell_w_fl)
+                  ((y0 +. anim_time *. y_v) *. cell_w_fl) );
+      t
+
+    let render_player_z0 ~assets ~t cx { pl_color; pl_face; _ } =
       cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
               ~t ~x:(- blob_img_ox) ~y:(- blob_img_oy)
 
-    let render_player_z1 ~assets ~t cx
-          { pl_pos; pl_switching; _ }
-      =
-      let t = Affine.extend t in
-      t |> translate_to_grid_center pl_pos;
+    let render_player_z1 ~assets ~t cx { pl_switching; _ } =
       if pl_switching then
         render_switching_above_player ~assets ~t cx
 
@@ -569,14 +602,16 @@ module Make
        *)
 
     let render_map_elements ~t cx
-          { assets; player_0; player_1; _ }
+          { assets; anim_time; player_0; player_1; _ }
       =
       begin
-        render_player_z0 ~assets ~t cx player_0;
-        render_player_z0 ~assets ~t cx player_1;
+        let pl0_t = player_0 |> make_player_transform ~t ~anim_time in
+        let pl1_t = player_1 |> make_player_transform ~t ~anim_time in
+        render_player_z0 ~assets ~t:pl0_t cx player_0;
+        render_player_z0 ~assets ~t:pl1_t cx player_1;
         (* List.iter (render_item ~assets ~t cx) items; *)
-        render_player_z1 ~assets ~t cx player_0;
-        render_player_z1 ~assets ~t cx player_1;
+        render_player_z1 ~assets ~t:pl0_t cx player_0;
+        render_player_z1 ~assets ~t:pl1_t cx player_1;
       end
 
     (* -- main entry point -- *)
