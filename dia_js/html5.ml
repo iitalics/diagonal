@@ -49,25 +49,10 @@ end
 
 module Image = struct
   type t =
-    { elem: Dom_html.imageElement Js.t;
-      sx: int; sy: int; sw: int; sh: int }
+    Dom_html.imageElement Js.t
 
-  let make elem =
-    { elem;
-      sx = 0;
-      sy = 0;
-      sw = elem##.width;
-      sh = elem##.height }
-
-  let size { sw; sh; _ } =
-    (sw, sh)
-
-  let clip ~x ~y ~w ~h { elem; sx; sy; sw; sh } =
-    { elem;
-      sx = sx + x;
-      sy = sy + y;
-      sw = min (sw - x) w;
-      sh = min (sh - y) h }
+  let size (im: t) =
+    (im##.width, im##.height)
 end
 
 (* drawing context *)
@@ -103,11 +88,11 @@ module Ctxt = struct
     cx##fillText (Js.string str) (float_of_int x) (float_of_int y);
     cx |> reset
 
-  let image ~x ~y ?t { Image.elem; sx; sy; sw; sh } (cx: t) =
+  let image ~x ~y ~sx ~sy ~w ~h ?t elem (cx: t) =
     cx |> transform t;
     cx##drawImage_full elem
-      (float_of_int sx) (float_of_int sy) (float_of_int sw) (float_of_int sh)
-      (float_of_int x) (float_of_int y) (float_of_int sw) (float_of_int sh);
+      (float_of_int sx) (float_of_int sy) (float_of_int w) (float_of_int h)
+      (float_of_int x) (float_of_int y) (float_of_int w) (float_of_int h);
     cx |> reset
 
   let[@ocaml.inline] lift_pen i = function

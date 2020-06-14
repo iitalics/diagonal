@@ -30,7 +30,6 @@ module type Draw_S = sig
   module Image: sig
     type t
     val size: t -> int * int
-    val clip: x:int -> y:int -> w:int -> h:int -> t -> t
   end
 
   module Ctxt: sig
@@ -44,8 +43,10 @@ module type Draw_S = sig
        position [x, y]. *)
     val text: x:int -> y:int -> font:Font.t -> c:Color.t -> ?t:Affine.t -> string -> t -> unit
 
-    (** [cx |> image ~x ~y img] draws image [img] at position [x, y]. *)
-    val image: x:int -> y:int -> ?t:Affine.t -> Image.t -> t -> unit
+    (** [cx |> image ~x ~y ~sx ~sy ~w ~h img] draws image [img] at position [x, y].
+        with source rect origin [sx, sy] and size [w, h]. *)
+    val image: x:int -> y:int -> sx:int -> sy:int -> w:int -> h:int
+               -> ?t:Affine.t -> Image.t -> t -> unit
 
     (** [cx |> lines ~xs ~ys ~c mode] draws vertices with color [c], x-coordinates [xs],
        and y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines

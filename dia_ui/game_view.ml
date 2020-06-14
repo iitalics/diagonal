@@ -286,11 +286,11 @@ module Make
     let hud_turn_bar_dy = 20
     let hud_turn_bar_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.6)
 
-    let item_icon_img ty assets =
+    let render_icon_img ~assets ?t cx ty =
       let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
-      assets.sprites |> Image.clip ~x:384 ~y:(row * 64) ~w:64 ~h:64
-
-    let item_icon_w = 64
+      cx |> Ctxt.image assets.sprites
+              ~x:(-32) ~y:(-32) ?t
+              ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
 
     let render_hud_bg ~t cx =
       cx |> Ctxt.vertices `Fill
@@ -341,10 +341,8 @@ module Make
        (* primary item *)
        (let item = pl_item in
         let t = Affine.extend t in
-        t |> Affine.scale
-               hud_item_scale hud_item_scale;
-        cx |> Ctxt.image (assets |> item_icon_img item) ~t
-                ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
+        t |> Affine.scale hud_item_scale hud_item_scale;
+        render_icon_img ~assets ~t cx item);
 
        (* active item text *)
        (let font = assets.hud_act_item in
@@ -363,8 +361,7 @@ module Make
                      hud_item_alt_dy;
               t |> Affine.scale
                      hud_item_alt_scale hud_item_alt_scale;
-              cx |> Ctxt.image (assets |> item_icon_img item) ~t
-                      ~x:(-item_icon_w / 2) ~y:(-item_icon_w / 2));
+              render_icon_img ~assets ~t cx item);
 
              (* alt item text *)
              (let font = assets.hud_act_item in
@@ -421,15 +418,10 @@ module Make
     let map_w = cell_w * Rules.grid_cols
     let map_y = 260
 
-    let map_img_ox, map_img_oy = 64, 64
-    let map_img assets =
-      assets.map |> Image.clip ~x:0 ~y:0 ~w:640 ~h:640
-
-    let render_map ~t cx
-          { assets; _ }
-      =
-      cx |> Ctxt.image (assets |> map_img)
-              ~t ~x:(- map_img_ox) ~y:(- map_img_oy)
+    let render_map ~t cx { assets; _ } =
+      cx |> Ctxt.image assets.map
+              ~x:(-64) ~y:(-64) ~t
+              ~sx:0 ~sy:0 ~w:640 ~h:640
 
     let grid_xs, grid_ys =
       let rad = 8 in
@@ -547,19 +539,10 @@ module Make
 
     (* -- rendering map elements (players, items) -- *)
 
-    let blob_img_ox, blob_img_oy = 32, 32
-    let blob_img color face assets =
-      assets.sprites |> Image.clip
-                          ~x:(0 + 64 * face)
-                          ~y:(0 + 64 * color)
-                          ~w:64 ~h:64
-
-    let swop_img_ox, swop_img_oy = 32, 32
-    let swop_dx, swop_dy = 0, -56
-    let swop_img assets =
-      assets.sprites |> Image.clip ~x:704 ~y:160 ~w:64 ~h:64
-
-    (* let item_img = item_icon_img *)
+    let render_blob_img ~assets ?t cx color face =
+      cx |> Ctxt.image assets.sprites
+              ~x:(-32) ~y:(-32) ?t
+              ~sx:(0 + 64 * face) ~sy:(0 + 64 * color) ~w:64 ~h:64
 
     let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
@@ -573,8 +556,7 @@ module Make
       t
 
     let render_player ~assets ~t cx { pl_color; pl_face; _ } =
-      cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
-              ~t ~x:(- blob_img_ox) ~y:(- blob_img_oy)
+      render_blob_img ~assets ~t cx pl_color pl_face
 
     let render_map_elements ~t cx
           { assets; anim_time; player_0; player_1; _ }

@@ -115,7 +115,7 @@ let of_spec spec f : _ t = object
 type image = Html5.Image.t
 let image ~path =
   of_spec (Img(path)) (function
-      | Img(elem, _) -> Html5.Image.make elem
+      | Img(elem, _) -> elem
       | _            -> failwith "wrong resource data")
 
 type font = Html5.Font.t
