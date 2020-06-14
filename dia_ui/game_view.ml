@@ -88,7 +88,6 @@ module Make
         pl_hp: int;
         pl_item: item_type;
         pl_alt_item: item_type option;
-        pl_switching: bool;
         (* map state *)
         pl_pos: pos;
         pl_anim: player_anim }
@@ -100,12 +99,6 @@ module Make
           (* y(t) = y0 + t * y_v *)
           { x0: float; y0: float;
             x_v: float; y_v: float }
-
-(*
-    and item =
-      { it_type: item_type;
-        it_pos: pos }
- *)
 
     and path_data =
       { pa_pos: pos;
@@ -205,7 +198,6 @@ module Make
         pl_hp = 16;
         pl_item = `S;
         pl_alt_item = None;
-        pl_switching = false;
         pl_pos = (0, 0);
         pl_anim = Player_idle }
 
@@ -569,12 +561,6 @@ module Make
 
     (* let item_img = item_icon_img *)
 
-    let render_switching_above_player ~assets ~t cx =
-      let t = Affine.extend t in
-      t |> Affine.translate_i swop_dx swop_dy;
-      cx |> Ctxt.image (assets |> swop_img)
-              ~t ~x:(- swop_img_ox) ~y:(- swop_img_oy)
-
     let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
       t |> translate_to_grid_center pl_pos;
@@ -586,23 +572,9 @@ module Make
                   ((y0 +. anim_time *. y_v) *. cell_w_fl) );
       t
 
-    let render_player_z0 ~assets ~t cx { pl_color; pl_face; _ } =
+    let render_player ~assets ~t cx { pl_color; pl_face; _ } =
       cx |> Ctxt.image (assets |> blob_img pl_color pl_face)
               ~t ~x:(- blob_img_ox) ~y:(- blob_img_oy)
-
-    let render_player_z1 ~assets ~t cx { pl_switching; _ } =
-      if pl_switching then
-        render_switching_above_player ~assets ~t cx
-
-      (*
-    let render_item ~assets ~t cx
-          { it_type; it_pos }
-      =
-      let t = Affine.extend t in
-      t |> translate_to_grid_center it_pos;
-      cx |> Ctxt.image (assets |> item_img it_type)
-              ~t ~x:(-cell_w / 2) ~y:(-cell_w / 2)
-       *)
 
     let render_map_elements ~t cx
           { assets; anim_time; player_0; player_1; _ }
@@ -610,11 +582,8 @@ module Make
       begin
         let pl0_t = player_0 |> make_player_transform ~t ~anim_time in
         let pl1_t = player_1 |> make_player_transform ~t ~anim_time in
-        render_player_z0 ~assets ~t:pl0_t cx player_0;
-        render_player_z0 ~assets ~t:pl1_t cx player_1;
-        (* List.iter (render_item ~assets ~t cx) items; *)
-        render_player_z1 ~assets ~t:pl0_t cx player_0;
-        render_player_z1 ~assets ~t:pl1_t cx player_1;
+        render_player ~assets ~t:pl0_t cx player_0;
+        render_player ~assets ~t:pl1_t cx player_1;
       end
 
     (* -- main entry point -- *)
