@@ -60,8 +60,8 @@ module Make_views
         let update _time _v = ()
 
         let handle_evt ev v = match (ev : View.Evt.t) with
-          | Key_dn "ArrowDown" -> v.hov <- v.hov + 1
-          | Key_dn "ArrowUp"   -> v.hov <- v.hov - 1
+          | Key_dn "ArrowDown" -> v.hov <- min (v.hov + 1) (List.length item_text - 1)
+          | Key_dn "ArrowUp"   -> v.hov <- max (v.hov - 1) 0
           | Key_dn "Enter"     -> v.sel <- true
           | _ -> ()
 
