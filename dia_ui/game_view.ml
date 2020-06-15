@@ -87,47 +87,45 @@ module Make
 
     and player_anim =
       | Player_idle
-      | Player_move of
-          (* x(t) = x0 + t * x_v *)
-          (* y(t) = y0 + t * y_v *)
-          { x0: float; y0: float;
-            x_v: float; y_v: float }
+      | Player_moving of
+          { dis0: float; vel: float;
+            s_dis: float; x_sgn: float; y_sgn: float;
+            axis: Path.axis }
 
     (*** processing game state data ***)
 
-    let update_player_data ~time:t0 (pl: Player.t) (pl': Player.t) (pd: player_data) =
-      let pl_pos = pl'.pos in
+    let path_vel_fl =
+      Rules.fps_fl /. Rules.move_rate (* cell/s *)
+
+    let update_player_data ~tick_time:t0 (pl: Player.t) (pl': Player.t) (pd: player_data) =
       let pl_anim =
         if pl'.anim = pl.anim then
           pd.pl_anim
         else
           match pl'.anim with
           | Player.No_anim -> Player_idle
-          | Player.Moving np when np |> Path.is_null -> Player_idle
-          | Player.Moving path ->
-             let (sx, sy) = path |> Path.source in
-             let (tx, ty) = path |> Path.target in
-             let (dx, dy) = (tx - sx), (ty - sy) in
-             let dt = (path |> Path.length) *. Rules.move_rate /. Rules.fps_fl in
-             (* x(t)       = x0 + t * x_v
-                x(t0)      = x0 + t0 * x_v         = 0
-                x(t0 + dt) = x0 + (t0 + dt) * x_v  = dx  *)
-             let x_v, y_v = float_of_int dx /. dt, float_of_int dy /. dt in
-             let x0, y0 = ~-. t0 *. x_v, ~-. t0 *. y_v in
-             Player_move { x0; y0; x_v; y_v }
+          | Player.Moving np when Path.is_null np -> Player_idle
+          | Player.Moving { s_dis; x_sgn; y_sgn; axis; _ } ->
+             Player_moving
+               { dis0  = ~-. t0 *. path_vel_fl;
+                 vel   = path_vel_fl;
+                 s_dis = float_of_int s_dis;
+                 x_sgn = float_of_int x_sgn;
+                 y_sgn = float_of_int y_sgn;
+                 axis  = axis }
       in
-      { pd with pl_pos; pl_anim }
+      { pd with pl_pos = pl'.pos; pl_anim }
 
     let update_from_game game v =
-      let time = v.last_tick_time in
+      let tick_time = v.last_tick_time in
       begin
         (* hud *)
-        v.hud |> HUD.update_game ~tick_time:time game;
+        v.hud |> HUD.update_game ~tick_time game;
         (* players, map *)
-        v.player_0 <- v.player_0 |> update_player_data ~time
+        v.player_0 <- v.player_0 |> update_player_data ~tick_time
                                       (v.game |> Gameplay.player_0)
                                       (game |> Gameplay.player_0);
-        v.player_1 <- v.player_1 |> update_player_data ~time
+        v.player_1 <- v.player_1 |> update_player_data ~tick_time
                                       (v.game |> Gameplay.player_1)
                                       (game |> Gameplay.player_1);
         (* cursor, path *)
@@ -332,15 +330,29 @@ module Make
               ~x:(-32) ~y:(-32) ?t
               ~sx:(0 + 64 * face) ~sy:(0 + 64 * color) ~w:64 ~h:64
 
+    let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
+
+    let apply_player_anim ~anim_time ~t = function
+      | Player_idle ->
+         ()
+
+      | Player_moving { dis0; vel; s_dis; x_sgn; y_sgn; axis } ->
+         let dis = dis0 +. anim_time *. vel in
+         let dis' = (dis -. s_dis) *. sqrt2_2 in
+         let s_off, d_off = if      dis <= 0.    then 0., 0.
+                            else if dis <= s_dis then dis, 0.
+                            else                      s_dis +. dis', dis' in
+         let x_off, y_off = (match axis with
+                             | X -> s_off, d_off
+                             | Y -> d_off, s_off) in
+         t |> Affine.translate
+                (x_off *. x_sgn *. cell_w_fl)
+                (y_off *. y_sgn *. cell_w_fl)
+
     let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
       t |> translate_to_grid_center pl_pos;
-      ( match pl_anim with
-        | Player_idle -> ()
-        | Player_move { x0; y0; x_v; y_v } ->
-           t |> Affine.translate
-                  ((x0 +. anim_time *. x_v) *. cell_w_fl)
-                  ((y0 +. anim_time *. y_v) *. cell_w_fl) );
+      pl_anim |> apply_player_anim ~anim_time ~t;
       t
 
     let render_player ~assets ~t cx { pl_color; pl_face; _ } =
