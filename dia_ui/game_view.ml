@@ -74,7 +74,7 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: pos option;
-        mutable path_data: path_data option }
+        mutable path_data: Path.t option }
 
     and player_data =
       { (* user info *)
@@ -92,14 +92,6 @@ module Make
           (* y(t) = y0 + t * y_v *)
           { x0: float; y0: float;
             x_v: float; y_v: float }
-
-    and path_data =
-      { pa_pos: pos;
-        pa_s_dis: int;
-        pa_d_dis: int;
-        pa_s_sgn: int;
-        pa_d_sgn: int;
-        pa_axis: Path.axis }
 
     (*** processing game state data ***)
 
@@ -126,17 +118,6 @@ module Make
       in
       { pd with pl_pos; pl_anim }
 
-    let path_data_of_path Path.{ pos; x_sgn; y_sgn; s_dis; d_dis; axis } =
-      match axis with
-      | X -> { pa_pos = pos;
-               pa_s_dis = s_dis; pa_d_dis = d_dis;
-               pa_s_sgn = x_sgn; pa_d_sgn = y_sgn;
-               pa_axis = X }
-      | Y -> { pa_pos = pos;
-               pa_s_dis = s_dis; pa_d_dis = d_dis;
-               pa_s_sgn = y_sgn; pa_d_sgn = x_sgn;
-               pa_axis = Y }
-
     let update_from_game game v =
       let time = v.last_tick_time in
       begin
@@ -151,7 +132,7 @@ module Make
                                       (game |> Gameplay.player_1);
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
-        v.path_data <- game |> Gameplay.path |> Option.map path_data_of_path;
+        v.path_data <- game |> Gameplay.path;
         (* *)
         v.game <- game;
       end
@@ -269,48 +250,41 @@ module Make
     let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
     let path_rad = 16
 
-    let bent_line_coords s_len d_len s_sgn d_sgn axis =
+    let bent_line_coords s_len d_len x_sgn y_sgn axis =
       let r, r', r'' =
         path_rad,
         path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
         path_rad * 414 / 1000  (* ~ r * tan(22.5 deg) *)
       in
-      let v1 = s_len * s_sgn in
-      let v2 = d_len * s_sgn + v1 in
-      let v3 = d_len * d_sgn in
-      let i  = s_sgn * d_sgn in
-      match axis with
-      | Path.X ->
-         let x1, x2, y2 = v1, v2, v3 in
-         (*
-            0--------------1          + = ( 0, 0)
-            +            *  \         * = (x1, 0)
-            5-----------4    \        @ = (x2,y2)
-                         \    \
-                          3-@--2
+      (*
+         0--------------1          + = ( 0, 0)
+         +            *  \         * = (l1, 0)
+         5-----------4    \        @ = (l2,l2)
+                      \    \
+                       3-@--2
 
-                          2--@-3
-                         /    /
-            0-----------1    /
-            +            *  /
-            5--------------4
-          *)
-         [|  0; x1 + r''*i; x2 + r'*i; x2 - r'*i; x1 - r''*i; 0 |],
-         [| -r;     -r    ; y2 - r'  ; y2 + r'  ;      r    ; r |]
-      | Path.Y ->
-         let y1, y2, x2 = v1, v2, v3 in
-         [| -r;     -r    ; x2 - r'  ; x2 + r'  ;      r    ; r |],
-         [|  0; y1 + r''*i; y2 + r'*i; y2 - r'*i; y1 - r''*i; 0 |]
+                       2--@-3
+                      /    /
+         0-----------1    /
+         +            *  /
+         5--------------4
+       *)
+      let l1, l2, l3 = s_len, s_len + d_len, d_len in
+      let maj i = [|     0; i*(l1 + r''); i*(l2 + r'); i*(l2 - r'); i*(l1 - r'');   0 |] in
+      let min i = [| i* -r; i*     -r   ; i*(l3 - r'); i*(l3 + r'); i*      r   ; i*r |] in
+      match axis with
+      | Path.X -> maj x_sgn, min y_sgn
+      | Path.Y -> min x_sgn, maj y_sgn
 
     let render_path ~t cx
-          { pa_pos; pa_s_dis; pa_d_dis; pa_s_sgn; pa_d_sgn; pa_axis }
+          Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn }
       =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pa_pos;
+      t |> translate_to_grid_center pos;
       let xs, ys = bent_line_coords
-                     (pa_s_dis * cell_w)
-                     (pa_d_dis * cell_w)
-                     pa_s_sgn pa_d_sgn pa_axis in
+                     (s_dis * cell_w)
+                     (d_dis * cell_w)
+                     x_sgn y_sgn axis in
       cx |> Ctxt.vertices `Fill
               ~t ~c:path_c ~xs ~ys
 
