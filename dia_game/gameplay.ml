@@ -2,10 +2,6 @@ module Turn = struct
   type t = { num: int; frame: int }
 end
 
-module Pos = struct
-  type t = int * int
-end
-
 module Player = struct
   type t = { pos: Pos.t;
              anim: anim }

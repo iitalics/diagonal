@@ -1,11 +1,12 @@
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
+module Item_type = Dia_game.Item_type
 module Path = Dia_game.Path
 module Player = Dia_game.Gameplay.Player
+module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
 module Turn = Dia_game.Gameplay.Turn
-module Item_type = Dia_game.Item_type
 
 module type S =
   View.S with type init = Gameplay.t
@@ -60,8 +61,6 @@ module Make
 
     (*** init ***)
 
-    type pos = int * int
-
     type t =
       { assets: game_assets;
         hud: HUD.t;
@@ -73,7 +72,7 @@ module Make
         mutable player_0: player_data;
         mutable player_1: player_data;
         (* cursor, path *)
-        mutable cursor: pos option;
+        mutable cursor: Pos.t option;
         mutable path_data: Path.t list }
 
     and player_data =
@@ -82,7 +81,7 @@ module Make
         pl_face: int;
         pl_name: string;
         (* map state *)
-        pl_pos: pos;
+        pl_pos: Pos.t;
         pl_anim: player_anim }
 
     and player_anim =

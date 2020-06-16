@@ -2,10 +2,6 @@ module Turn: sig
   type t = { num: int; frame: int }
 end
 
-module Pos: sig
-  type t = int * int
-end
-
 module Player: sig
   type t = { pos: Pos.t;
              anim: anim }
