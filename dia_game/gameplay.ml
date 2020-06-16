@@ -103,12 +103,10 @@ let cursor t =
   | Turn { cu } -> Some(cu)
   | Move _ -> None
 
-let path t =
+let paths t =
   match t.phase with
-  | Turn { cu } -> Some(Path.from_points
-                          ~src:t.pl0.pos
-                          ~tgt:cu)
-  | Move { pa0 } -> Some(pa0)
+  | Turn { cu }  -> [ Path.from_points ~src:t.pl0.pos ~tgt:cu ]
+  | Move { pa0 } -> [ pa0 ]
 
 let grid_clamp x =
   x |> max 0 |> min (Rules.grid_cols - 1)

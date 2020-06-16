@@ -27,4 +27,4 @@ val turn: t -> Turn.t
 val player_0: t -> Player.t
 val player_1: t -> Player.t
 val cursor: t -> Pos.t option
-val path: t -> Path.t option
+val paths: t -> Path.t list

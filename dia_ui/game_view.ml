@@ -74,7 +74,7 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: pos option;
-        mutable path_data: Path.t option }
+        mutable path_data: Path.t list }
 
     and player_data =
       { (* user info *)
@@ -133,7 +133,7 @@ module Make
                                       (game |> Gameplay.player_1);
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
-        v.path_data <- game |> Gameplay.path;
+        v.path_data <- game |> Gameplay.paths;
         (* *)
         v.game <- game;
       end
@@ -165,7 +165,7 @@ module Make
           player_1 = default_player 3 2 "Player Two";
           (* cursor, path *)
           cursor = None;
-          path_data = None }
+          path_data = [] }
       in
       v0 |> update_from_game game;
       v0
@@ -322,7 +322,7 @@ module Make
     let render_grid_elements ~t cx v =
       begin
         render_grid ~t cx;
-        v.path_data |> Option.iter (render_path ~t cx);
+        v.path_data |> List.iter (render_path ~t cx);
         v.cursor |> Option.iter (render_cursor ~t cx);
       end
 
