@@ -2,15 +2,6 @@ module Turn: sig
   type t = { num: int; frame: int }
 end
 
-module Player: sig
-  type t = { pos: Pos.t;
-             anim: anim }
-
-  and anim =
-    | No_anim
-    | Moving of Path.t
-end
-
 type t
 
 val make: unit -> t

@@ -2,25 +2,6 @@ module Turn = struct
   type t = { num: int; frame: int }
 end
 
-module Player = struct
-  type t = { pos: Pos.t;
-             anim: anim }
-
-  and anim =
-    | No_anim
-    | Moving of Path.t
-
-  let make x y =
-    { pos = (x, y);
-      anim = No_anim }
-
-  let move_anim path pl =
-    { pl with anim = Moving(path) }
-
-  let move_to pos _pl =
-    { pos; anim = No_anim }
-end
-
 type t =
   { pl0: Player.t;
     pl1: Player.t;
@@ -30,13 +11,16 @@ type t =
 
 and phase =
   | Turn of { cu: Pos.t }
-  | Move of { pa0: Path.t }
+  | Moving of { frames: int }
+
+let player_0_spawn = (3, 3)
+let player_1_spawn = (6, 7)
 
 let make () =
-  { pl0 = Player.make 3 3;
-    pl1 = Player.make 6 7;
+  { pl0 = Player.make player_0_spawn;
+    pl1 = Player.make player_1_spawn;
     turn_num = 1;
-    phase = Turn { cu = (3, 3) };
+    phase = Turn { cu = player_0_spawn };
     f = 0 }
 
 (* players *)
@@ -46,50 +30,34 @@ let player_1 t = t.pl1
 
 (* phases, turns *)
 
-type phase_action =
-  | No_op
-  | Animate_player_0 of Path.t
-  | Move_players of Pos.t * Pos.t
+let phase_frames = function
+  | Turn _            -> Rules.turn_frames
+  | Moving { frames } -> frames
 
-let path_anim_frames path =
-  int_of_float @@
-    ceil ((path |> Path.length) *. Rules.move_rate)
-
-let update_phase t = match t.phase with
-  | Turn { cu } when (t.f >= Rules.turn_frames) ->
-     let path = Path.from_points
-                  ~src:t.pl0.pos
-                  ~tgt:cu in
-     Move { pa0 = path },
-     Animate_player_0(path)
-
-  | Move { pa0 } when (t.f >= (pa0 |> path_anim_frames)) ->
-     let tgt0 = pa0 |> Path.target in
-     let tgt1 = t.pl1.pos in
-     Turn { cu = tgt0 },
-     Move_players(tgt0, tgt1)
-
-  | phase ->
-     phase, No_op
-
-let apply_phase_action t = function
-  | No_op -> t
-  | Animate_player_0(pa) ->
+let end_phase t = function
+  | Turn { cu } ->
+     let pl0 = t.pl0 |> Player.move_to cu in
+     let pl1 = t.pl1 in
+     let frames = max
+                    (pl0.anim |> Player.anim_frames)
+                    (pl1.anim |> Player.anim_frames) in
      { t with
-       f = 0;
-       pl0 = t.pl0 |> Player.move_anim pa }
-  | Move_players(pos0, pos1) ->
+       pl0; pl1;
+       phase = Moving { frames } }
+  | Moving _ ->
+     let pl0 = t.pl0 |> Player.stop_moving in
+     let pl1 = t.pl1 |> Player.stop_moving in
+     let cu = pl0.pos in
      { t with
+       pl0; pl1;
        turn_num = t.turn_num + 1;
-       f = 0;
-       pl0 = t.pl0 |> Player.move_to pos0;
-       pl1 = t.pl1 |> Player.move_to pos1 }
+       phase = Turn { cu } }
 
 let turn t =
   let num = t.turn_num in
   let frame = match t.phase with
-    | Turn _ -> t.f
-    | Move _ -> Rules.turn_frames in
+    | Turn _   -> t.f
+    | Moving _ -> Rules.turn_frames in
   Turn.{ num; frame }
 
 (* cursor *)
@@ -97,12 +65,20 @@ let turn t =
 let cursor t =
   match t.phase with
   | Turn { cu } -> Some(cu)
-  | Move _ -> None
+  | Moving _    -> None
 
 let paths t =
-  match t.phase with
-  | Turn { cu }  -> [ Path.from_points ~src:t.pl0.pos ~tgt:cu ]
-  | Move { pa0 } -> [ pa0 ]
+  let player_anim_path an k = match an with
+    | Player.No_anim   -> k
+    | Player.Moving pa -> pa :: k
+  in
+  let phase_path ph k = match ph with
+    | Turn { cu } -> Path.from_points ~src:t.pl0.pos ~tgt:cu :: k
+    | Moving _    -> k
+  in
+  phase_path t.phase
+    (player_anim_path t.pl0.anim
+       (player_anim_path t.pl1.anim []))
 
 let grid_clamp x =
   x |> max 0 |> min (Rules.grid_cols - 1)
@@ -110,25 +86,29 @@ let grid_clamp x =
 let[@ocaml.inline] move_cursor_by dx dy t =
   match t.phase with
   | Turn { cu = (cx, cy) } ->
-     let cu' = (grid_clamp (cx + dx),
-                grid_clamp (cy + dy)) in
-     { t with phase = Turn { cu = cu' } }
-  | Move _ ->
+     let cu = (grid_clamp (cx + dx),
+               grid_clamp (cy + dy)) in
+     { t with phase = Turn { cu } }
+  | Moving _ ->
      t
 
 let[@ocaml.inline] reset_cursor t =
   match t.phase with
   | Turn { cu = _ } ->
      { t with phase = Turn { cu = t.pl0.pos } }
-  | Move _ ->
+  | Moving _ ->
      t
 
 (* events *)
 
 let tick t =
-  let t = { t with f = t.f + 1 } in
-  let phase, action = update_phase t in
-  action |> apply_phase_action { t with phase }
+  let rec loop t =
+    if t.f >= phase_frames t.phase then
+      loop (end_phase { t with f = 0 } t.phase)
+    else
+      t
+  in
+  loop { t with f = t.f + 1 }
 
 let key_dn : Input.Key.t -> _ = function
   | Up    -> move_cursor_by 0 (-1)
