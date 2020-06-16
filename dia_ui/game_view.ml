@@ -89,7 +89,8 @@ module Make
       | Player_idle
       | Player_moving of
           { dis0: float; vel: float;
-            s_dis: float; x_sgn: float; y_sgn: float;
+            s_dis: float; d_dis: float; len: float;
+            x_sgn: float; y_sgn: float;
             axis: Path.axis }
 
     (*** processing game state data ***)
@@ -104,12 +105,14 @@ module Make
         else
           match pl'.anim with
           | Player.No_anim -> Player_idle
-          | Player.Moving np when Path.is_null np -> Player_idle
-          | Player.Moving { s_dis; x_sgn; y_sgn; axis; _ } ->
+          | Player.Moving p when Path.is_null p -> Player_idle
+          | Player.Moving ({ s_dis; d_dis; x_sgn; y_sgn; axis; _ } as pa) ->
              Player_moving
                { dis0  = ~-. t0 *. path_vel_fl;
                  vel   = path_vel_fl;
                  s_dis = float_of_int s_dis;
+                 d_dis = float_of_int d_dis;
+                 len   = pa |> Path.length;
                  x_sgn = float_of_int x_sgn;
                  y_sgn = float_of_int y_sgn;
                  axis  = axis }
@@ -336,12 +339,13 @@ module Make
       | Player_idle ->
          ()
 
-      | Player_moving { dis0; vel; s_dis; x_sgn; y_sgn; axis } ->
-         let dis = dis0 +. anim_time *. vel in
-         let dis' = (dis -. s_dis) *. sqrt2_2 in
-         let s_off, d_off = if      dis <= 0.    then 0., 0.
-                            else if dis <= s_dis then dis, 0.
-                            else                      s_dis +. dis', dis' in
+      | Player_moving { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis } ->
+         let d = dis0 +. anim_time *. vel in
+         let d' = (d -. s_dis) *. sqrt2_2 in
+         let s_off, d_off = if      d <= 0.    then 0., 0.
+                            else if d <= s_dis then d, 0.
+                            else if d <= len   then s_dis +. d', d'
+                            else                    s_dis +. d_dis, d_dis in
          let x_off, y_off = (match axis with
                              | X -> s_off, d_off
                              | Y -> d_off, s_off) in
