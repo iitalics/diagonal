@@ -1,5 +1,6 @@
 module Gameplay = Dia_game.Gameplay
 module Player_controller = Dia_game.Player_controller
+module Prng = Dia_game.Prng
 
 module Make_views
          (Draw: Intf.Draw_S)
@@ -40,6 +41,7 @@ module Make_views
         type t =
           { assets: assets;
             geom: geom;
+            mutable rng_seed: int;
             mutable hov: int;
             mutable sel: bool }
 
@@ -58,7 +60,8 @@ module Make_views
 
         (* event handling *)
 
-        let update _time _v = ()
+        let update time v =
+          v.rng_seed <- int_of_float (time *. 1000000.)
 
         let handle_evt ev v = match (ev : View.Evt.t) with
           | Key_dn "ArrowDown" -> v.hov <- min (v.hov + 1) (List.length item_text - 1)
@@ -72,7 +75,8 @@ module Make_views
               match v.hov with
               | 0 -> let init = Gameplay.make
                                   ~player_ctrl_0:Player_controller.user_ctrl
-                                  ~player_ctrl_1:Player_controller.no_ctrl in
+                                  ~player_ctrl_1:(Player_controller.bot_ctrl @@
+                                                    Prng.make ~seed:v.rng_seed) in
                      disp |> View_disp.push_view (module Game_view)
                                ~init
               | _ -> () )
@@ -151,6 +155,7 @@ module Make_views
           { assets;
             hov = 0;
             sel = false;
+            rng_seed = 0;
             geom = make_geom ~assets }
       end
   end
