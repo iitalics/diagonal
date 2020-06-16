@@ -66,20 +66,21 @@ let turn t =
     | Moving _ -> Rules.turn_frames in
   Turn.{ num; frame }
 
-(* cursor *)
+(* cursor, paths *)
 
-let cursor t =
-  match t.phase with
-  | Turn { cu } -> Some(cu)
-  | Moving _    -> None
+type path_type =
+  | Select_path
+  | Player_path
 
 let paths t =
   let player_anim_path an k = match an with
     | Player.No_anim   -> k
-    | Player.Moving pa -> pa :: k
+    | Player.Moving pa -> (pa, Player_path) :: k
   in
   let phase_path ph k = match ph with
-    | Turn { cu } -> Path.from_points ~src:t.pl0.pos ~tgt:cu :: k
+    | Turn { cu } -> (Path.from_points ~src:t.pl0.pos ~tgt:cu,
+                      Select_path)
+                     :: k
     | Moving _    -> k
   in
   phase_path t.phase
@@ -104,6 +105,11 @@ let[@ocaml.inline] reset_cursor t =
      { t with phase = Turn { cu = t.pl0.pos } }
   | Moving _ ->
      t
+
+let cursor t =
+  match t.phase with
+  | Turn { cu } -> Some(cu)
+  | Moving _    -> None
 
 (* events *)
 

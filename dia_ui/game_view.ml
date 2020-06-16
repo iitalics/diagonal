@@ -73,7 +73,7 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: Pos.t option;
-        mutable path_data: Path.t list }
+        mutable path_data: (Path.t * path_type) list }
 
     and player_data =
       { (* user info *)
@@ -91,6 +91,9 @@ module Make
             s_dis: float; d_dis: float; len: float;
             x_sgn: float; y_sgn: float;
             axis: Path.axis }
+
+    and path_type =
+      Gameplay.path_type
 
     (*** processing game state data ***)
 
@@ -247,7 +250,12 @@ module Make
              (col * cell_w + cell_w / 2)
              (row * cell_w + cell_w / 2)
 
-    let path_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
+    let path_sel_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
+    let path_pl_c = Color.(of_rgb_s "#fff" |> with_alpha 0.4)
+    let path_c = function
+      | Gameplay.Select_path -> path_sel_c
+      | Gameplay.Player_path -> path_pl_c
+
     let path_rad = 16
 
     let bent_line_coords s_len d_len x_sgn y_sgn axis =
@@ -276,9 +284,7 @@ module Make
       | Path.X -> maj x_sgn, min y_sgn
       | Path.Y -> min x_sgn, maj y_sgn
 
-    let render_path ~t cx
-          Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn }
-      =
+    let render_path ~t cx c Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn } =
       let t = Affine.extend t in
       t |> translate_to_grid_center pos;
       let xs, ys = bent_line_coords
@@ -286,7 +292,7 @@ module Make
                      (d_dis * cell_w)
                      x_sgn y_sgn axis in
       cx |> Ctxt.vertices `Fill
-              ~t ~c:path_c ~xs ~ys
+              ~t ~c ~xs ~ys
 
     let cursor_c = Color.of_rgb_s "#fff"
     let cursor_coords =
@@ -321,7 +327,7 @@ module Make
     let render_grid_elements ~t cx v =
       begin
         render_grid ~t cx;
-        v.path_data |> List.iter (render_path ~t cx);
+        v.path_data |> List.iter (fun (pa, pt) -> render_path ~t cx (path_c pt) pa);
         v.cursor |> Option.iter (render_cursor ~t cx);
       end
 
