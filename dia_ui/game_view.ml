@@ -245,7 +245,7 @@ module Make
       cx |> Ctxt.vertices `Lines
               ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
-    let translate_to_grid_center (col, row) t =
+    let translate_to_grid_center ~t (col, row) =
       t |> Affine.translate_i
              (col * cell_w + cell_w / 2)
              (row * cell_w + cell_w / 2)
@@ -286,7 +286,7 @@ module Make
 
     let render_path ~t cx c Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn } =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pos;
+      pos |> translate_to_grid_center ~t;
       let xs, ys = bent_line_coords
                      (s_dis * cell_w)
                      (d_dis * cell_w)
@@ -319,7 +319,7 @@ module Make
 
     let render_cursor ~t cx pos =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pos;
+      pos |> translate_to_grid_center ~t;
       cursor_coords |> Array.iter
                          (fun (xs, ys) ->
                            cx |> Ctxt.vertices `Fill ~t ~c:cursor_c ~xs ~ys)
@@ -360,7 +360,7 @@ module Make
 
     let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
-      t |> translate_to_grid_center pl_pos;
+      pl_pos |> translate_to_grid_center ~t;
       pl_anim |> apply_player_anim ~anim_time ~t;
       t
 
