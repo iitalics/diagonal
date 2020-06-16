@@ -1,4 +1,5 @@
 module Gameplay = Dia_game.Gameplay
+module Player_controller = Dia_game.Player_controller
 
 module Make_views
          (Draw: Intf.Draw_S)
@@ -69,8 +70,11 @@ module Make_views
           if v.sel then
             ( v.sel <- false;
               match v.hov with
-              | 0 -> disp |> View_disp.push_view (module Game_view)
-                               ~init:(Gameplay.make ())
+              | 0 -> let init = Gameplay.make
+                                  ~player_ctrl_0:Player_controller.user_ctrl
+                                  ~player_ctrl_1:Player_controller.no_ctrl in
+                     disp |> View_disp.push_view (module Game_view)
+                               ~init
               | _ -> () )
 
         (* geometry *)

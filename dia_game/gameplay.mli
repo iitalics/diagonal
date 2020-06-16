@@ -4,7 +4,9 @@ end
 
 type t
 
-val make: unit -> t
+val make: player_ctrl_0:Player_controller.t
+          -> player_ctrl_1:Player_controller.t
+          -> t
 
 val tick: t -> t
 val key_dn: Input.Key.t -> t -> t

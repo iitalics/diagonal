@@ -5,6 +5,8 @@ end
 type t =
   { pl0: Player.t;
     pl1: Player.t;
+    pc0: Player_controller.t;
+    pc1: Player_controller.t;
     turn_num: int;
     phase: phase;
     f: int }
@@ -16,9 +18,10 @@ and phase =
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
 
-let make () =
+let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   { pl0 = Player.make player_0_spawn;
     pl1 = Player.make player_1_spawn;
+    pc0; pc1;
     turn_num = 1;
     phase = Turn { cu = player_0_spawn };
     f = 0 }
@@ -36,13 +39,16 @@ let phase_frames = function
 
 let end_phase t = function
   | Turn { cu } ->
-     let pl0 = t.pl0 |> Player.move_to cu in
-     let pl1 = t.pl1 in
+     let pl0, pc0 = t.pc0
+                    |> Player_controller.set_cursor cu
+                    |> Player_controller.commit_turn t.pl0 in
+     let pl1, pc1 = t.pc1
+                    |> Player_controller.commit_turn t.pl1 in
      let frames = max
                     (pl0.anim |> Player.anim_frames)
                     (pl1.anim |> Player.anim_frames) in
      { t with
-       pl0; pl1;
+       pl0; pl1; pc0; pc1;
        phase = Moving { frames } }
   | Moving _ ->
      let pl0 = t.pl0 |> Player.stop_moving in
