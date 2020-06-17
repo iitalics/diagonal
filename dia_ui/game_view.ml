@@ -294,41 +294,20 @@ module Make
       cx |> Ctxt.vertices `Fill
               ~t ~c ~xs ~ys
 
-    let cursor_c = Color.of_rgb_s "#fff"
-    let cursor_coords =
-      let a, b, c = 8, 26, 29 in
-      let elbow i =
-        let x = i mod 2 in
-        let y = i   / 2 in
-        let dx = x * 2 - 1 in
-        let dy = y * 2 - 1 in
-        (*
-           c 0-------------1
-             |             |
-           b 5--------4    |
-                      |    |
-                      |    |
-                      |    |
-           a          3----2
-             a        b    c
-         *)
-        [| x+a*dx; x+c*dx; x+c*dx; x+b*dx; x+b*dx; x+a*dx |],
-        [| y+c*dy; y+c*dy; y+a*dy; y+a*dy; y+b*dy; y+b*dy |]
-      in
-      Array.init 4 elbow
-
-    let render_cursor ~t cx pos =
+    let render_cursor ~t ~assets cx pos =
       let t = Affine.extend t in
       pos |> translate_to_grid_center ~t;
-      cursor_coords |> Array.iter
-                         (fun (xs, ys) ->
-                           cx |> Ctxt.vertices `Fill ~t ~c:cursor_c ~xs ~ys)
+      cx |> Ctxt.image assets.sprites
+              ~x:(-32) ~y:(-32) ~t
+              ~sx:768 ~sy:160 ~w:64 ~h:64
 
-    let render_grid_elements ~t cx v =
+    let render_grid_elements ~t cx
+          { assets; path_data; cursor; _ }
+      =
       begin
         render_grid ~t cx;
-        v.path_data |> List.iter (fun (pa, pt) -> render_path ~t cx (path_c pt) pa);
-        v.cursor |> Option.iter (render_cursor ~t cx);
+        path_data |> List.iter (fun (pa, pt) -> render_path ~t cx (path_c pt) pa);
+        cursor |> Option.iter (render_cursor ~t ~assets cx);
       end
 
     (* -- rendering map elements (players, items) -- *)
