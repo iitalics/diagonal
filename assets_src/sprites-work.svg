@@ -526,7 +526,7 @@
   <sodipodi:namedview
      inkscape:pagecheckerboard="true"
      width="1200mm"
-     inkscape:snap-midpoints="false"
+     inkscape:snap-midpoints="true"
      showguides="true"
      inkscape:snap-others="false"
      inkscape:object-nodes="true"
@@ -545,11 +545,11 @@
      units="px"
      showgrid="false"
      inkscape:document-rotation="0"
-     inkscape:current-layer="layer1"
+     inkscape:current-layer="g2170"
      inkscape:document-units="px"
-     inkscape:cy="190.92347"
-     inkscape:cx="779.1303"
-     inkscape:zoom="7.0624817"
+     inkscape:cy="192.69576"
+     inkscape:cx="895.41554"
+     inkscape:zoom="4.9939287"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0"
      borderopacity="1.0"
@@ -3615,6 +3615,44 @@
          xlink:href="#g2040"
          id="use2042-24"
          transform="matrix(1,0,0,-1,0,17.19792)"
+         width="100%"
+         height="100%" />
+    </g>
+    <g
+       id="g2137">
+      <g
+         style="stroke-width:1.00012497;stroke-miterlimit:4;stroke-dasharray:none"
+         id="g2170">
+        <path
+           id="path2143-3"
+           style="display:inline;fill:none;fill-opacity:0.965908;stroke:#ff0000;stroke-width:1.00012497;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none;stop-color:#000000;stroke-opacity:1"
+           d="m 233.16358,44.229445 -4.43129,1.726827 -4.43129,-1.726826"
+           sodipodi:nodetypes="ccc" />
+      </g>
+      <use
+         height="100%"
+         width="100%"
+         transform="rotate(90,228.73229,50.932291)"
+         id="use2203"
+         xlink:href="#g2170"
+         y="0"
+         x="0" />
+      <use
+         style="display:inline"
+         x="0"
+         y="0"
+         xlink:href="#g2170"
+         id="use2203-0"
+         transform="rotate(180,228.73229,50.932291)"
+         width="100%"
+         height="100%" />
+      <use
+         style="display:inline"
+         x="0"
+         y="0"
+         xlink:href="#g2170"
+         id="use2203-6"
+         transform="rotate(-90,228.73229,50.932295)"
          width="100%"
          height="100%" />
     </g>
