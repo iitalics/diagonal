@@ -73,7 +73,8 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: Pos.t option;
-        mutable path_data: (Path.t * path_type) list }
+        mutable path_data: (Path.t * path_type) list;
+        mutable hit_marks: Pos.t list }
 
     and player_data =
       { (* user info *)
@@ -136,6 +137,7 @@ module Make
         (* cursor, path *)
         v.cursor <- game |> Gameplay.cursor;
         v.path_data <- game |> Gameplay.paths;
+        v.hit_marks <- game |> Gameplay.hit_marks;
         (* *)
         v.game <- game;
       end
@@ -167,7 +169,8 @@ module Make
           player_1 = default_player 3 2 "Player Two";
           (* cursor, path *)
           cursor = None;
-          path_data = [] }
+          path_data = [];
+          hit_marks = [] }
       in
       v0 |> update_from_game game;
       v0
@@ -301,13 +304,21 @@ module Make
               ~x:(-32) ~y:(-32) ~t
               ~sx:768 ~sy:160 ~w:64 ~h:64
 
+    let render_hit_mark ~t ~assets cx pos =
+      let t = Affine.extend t in
+      pos |> translate_to_grid_center ~t;
+      cx |> Ctxt.image assets.sprites
+              ~x:(-32) ~y:(-32) ~t
+              ~sx:832 ~sy:160 ~w:64 ~h:64
+
     let render_grid_elements ~t cx
-          { assets; path_data; cursor; _ }
+          { assets; path_data; cursor; hit_marks; _ }
       =
       begin
         render_grid ~t cx;
         path_data |> List.iter (fun (pa, pt) -> render_path ~t cx (path_c pt) pa);
         cursor |> Option.iter (render_cursor ~t ~assets cx);
+        hit_marks |> List.iter (render_hit_mark ~t ~assets cx);
       end
 
     (* -- rendering map elements (players, items) -- *)

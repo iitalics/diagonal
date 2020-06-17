@@ -111,16 +111,19 @@ let cursor t =
   | Turn { cu } -> Some(cu)
   | Moving _    -> None
 
+let hit_marks _t =
+  [ (0, 0) ]
+
 (* events *)
 
-let tick t =
+let tick : t -> t =
   let rec loop t =
     if t.f >= phase_frames t.phase then
       loop (end_phase { t with f = 0 } t.phase)
     else
       t
   in
-  loop { t with f = t.f + 1 }
+  fun t -> loop { t with f = t.f + 1 }
 
 let key_dn : Input.Key.t -> _ = function
   | Up    -> move_cursor_by 0 (-1)

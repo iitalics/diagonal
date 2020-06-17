@@ -21,3 +21,4 @@ val player_0: t -> Player.t
 val player_1: t -> Player.t
 val cursor: t -> Pos.t option
 val paths: t -> (Path.t * path_type) list
+val hit_marks: t -> Pos.t list
