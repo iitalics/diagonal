@@ -6,7 +6,6 @@ module Path = Dia_game.Path
 module Player = Dia_game.Player
 module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
-module Turn = Dia_game.Gameplay.Turn
 
 module type S =
   View.S with type init = Gameplay.t
@@ -66,8 +65,8 @@ module Make
         hud: HUD.t;
         mutable game: Gameplay.t;
         (* animations *)
-        mutable anim_time: float;
-        mutable last_tick_time: float;
+        mutable time: float;
+        mutable phase_start_time: float;
         (* players, map *)
         mutable player_0: player_data;
         mutable player_1: player_data;
@@ -83,7 +82,8 @@ module Make
         pl_name: string;
         (* map state *)
         pl_pos: Pos.t;
-        pl_anim: player_anim }
+        pl_anim: player_anim;
+        pl_base_anim: Player.anim }
 
     and player_anim =
       | Player_idle
@@ -98,21 +98,19 @@ module Make
 
     (*** processing game state data ***)
 
-    let path_vel_fl =
-      Rules.fps_fl /. Rules.move_rate (* cell/s *)
-
-    let update_player_data ~tick_time:t0 (pl: Player.t) (pl': Player.t) (pd: player_data) =
-      let pl_anim =
-        if pl'.anim = pl.anim then
+    let update_player_data time0 (pl: Player.t) (pd: player_data) =
+      let anim =
+        if pl.anim = pd.pl_base_anim then
           pd.pl_anim
         else
-          match pl'.anim with
+          match pl.anim with
           | Player.No_anim -> Player_idle
           | Player.Moving p when Path.is_null p -> Player_idle
           | Player.Moving ({ s_dis; d_dis; x_sgn; y_sgn; axis; _ } as pa) ->
+             let vel = Rules.move_vel in
              Player_moving
-               { dis0  = ~-. t0 *. path_vel_fl;
-                 vel   = path_vel_fl;
+               { vel;
+                 dis0  = ~-. time0 *. vel;
                  s_dis = float_of_int s_dis;
                  d_dis = float_of_int d_dis;
                  len   = pa |> Path.length;
@@ -120,30 +118,19 @@ module Make
                  y_sgn = float_of_int y_sgn;
                  axis  = axis }
       in
-      { pd with pl_pos = pl'.pos; pl_anim }
+      { pd with
+        pl_pos = pl.pos;
+        pl_anim = anim;
+        pl_base_anim = pl.anim }
 
-    let update_from_game game v =
-      let tick_time = v.last_tick_time in
-      begin
-        (* hud *)
-        v.hud |> HUD.update_game ~tick_time game;
-        (* players, map *)
-        v.player_0 <- v.player_0 |> update_player_data ~tick_time
-                                      (v.game |> Gameplay.player_0)
-                                      (game |> Gameplay.player_0);
-        v.player_1 <- v.player_1 |> update_player_data ~tick_time
-                                      (v.game |> Gameplay.player_1)
-                                      (game |> Gameplay.player_1);
-        (* cursor, path *)
-        v.cursor <- game |> Gameplay.cursor;
-        v.path_data <- game |> Gameplay.paths;
-        v.hit_marks <- game |> Gameplay.hit_marks;
-        (* *)
-        v.game <- game;
-      end
-
-    let update_game f v =
-      v |> update_from_game (f v.game)
+    let update_game time0 (game: Gameplay.t) (v: t) =
+      v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
+      v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
+      v.hud |> HUD.update_game time0 game;
+      v.cursor <- game |> Gameplay.cursor;
+      v.hit_marks <- game |> Gameplay.hit_marks;
+      v.path_data <- game |> Gameplay.paths;
+      v.game <- game
 
     (* init *)
 
@@ -154,7 +141,8 @@ module Make
         pl_face = face;
         pl_name = name;
         pl_pos = (0, 0);
-        pl_anim = Player_idle }
+        pl_anim = Player_idle;
+        pl_base_anim = Player.No_anim }
 
     let make (assets, hud_assets) game =
       let v0 =
@@ -162,8 +150,8 @@ module Make
           game;
           hud = HUD.make hud_assets game;
           (* animations *)
-          anim_time = 0.;
-          last_tick_time = 0.;
+          time = 0.;
+          phase_start_time = 0.;
           (* players, map *)
           player_0 = default_player 0 0 "Player One";
           player_1 = default_player 3 2 "Player Two";
@@ -172,22 +160,31 @@ module Make
           path_data = [];
           hit_marks = [] }
       in
-      v0 |> update_from_game game;
+      v0 |> update_game 0. game;
       v0
 
     (*** event handling ***)
 
-    let f_dt = Rules.frame_time
-
-    let update t v =
-      v.hud |> HUD.update_time t;
-      v.anim_time <- t;
-      let tick_t = v.last_tick_time +. f_dt in
-      if t > tick_t then
-        ( v.last_tick_time <- tick_t;
-          v |> update_game Gameplay.tick )
+    let update time v =
+      (* update game phase *)
+      let rec advance_phase_loop start_time =
+        let dur = v.game |> Gameplay.phase_duration in
+        let end_time = start_time +. dur in
+        if time >= end_time then
+          ( v |> update_game end_time (v.game |> Gameplay.end_phase);
+            advance_phase_loop end_time )
+        else
+          v.phase_start_time <- start_time
+      in
+      advance_phase_loop v.phase_start_time;
+      (* update animations *)
+      v.time <- time;
+      v.hud |> HUD.update time
 
     let handle_evt evt v =
+      let update_by f =
+        v |> update_game v.time (f v.game)
+      in
       let input_of_key_code = function
         | "ArrowLeft"  -> Some Input.Key.Left
         | "ArrowRight" -> Some Input.Key.Right
@@ -199,10 +196,10 @@ module Make
       match evt with
       | Evt.Key_dn kc ->
          input_of_key_code kc |>
-           Option.iter (fun i -> v |> update_game (Gameplay.key_dn i))
+           Option.iter (fun i -> update_by (Gameplay.key_dn i))
       | Evt.Key_up kc ->
          input_of_key_code kc |>
-           Option.iter (fun i -> v |> update_game (Gameplay.key_up i))
+           Option.iter (fun i -> update_by (Gameplay.key_up i))
 
     let switch _disp _v = ()
 
@@ -330,12 +327,12 @@ module Make
 
     let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
 
-    let apply_player_anim ~anim_time ~t = function
+    let apply_player_anim ~time ~t = function
       | Player_idle ->
          ()
 
       | Player_moving { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis } ->
-         let d = dis0 +. anim_time *. vel in
+         let d = dis0 +. time *. vel in
          let d' = (d -. s_dis) *. sqrt2_2 in
          let s_off, d_off = if      d <= 0.    then 0., 0.
                             else if d <= s_dis then d, 0.
@@ -348,21 +345,21 @@ module Make
                 (x_off *. x_sgn *. cell_w_fl)
                 (y_off *. y_sgn *. cell_w_fl)
 
-    let make_player_transform ~t ~anim_time { pl_pos; pl_anim; _ } =
+    let make_player_transform ~t ~time { pl_pos; pl_anim; _ } =
       let t = Affine.extend t in
       pl_pos |> translate_to_grid_center ~t;
-      pl_anim |> apply_player_anim ~anim_time ~t;
+      pl_anim |> apply_player_anim ~time ~t;
       t
 
     let render_player ~assets ~t cx { pl_color; pl_face; _ } =
       render_blob_img ~assets ~t cx pl_color pl_face
 
     let render_map_elements ~t cx
-          { assets; anim_time; player_0; player_1; _ }
+          { assets; time; player_0; player_1; _ }
       =
       begin
-        let pl0_t = player_0 |> make_player_transform ~t ~anim_time in
-        let pl1_t = player_1 |> make_player_transform ~t ~anim_time in
+        let pl0_t = player_0 |> make_player_transform ~t ~time in
+        let pl1_t = player_1 |> make_player_transform ~t ~time in
         render_player ~assets ~t:pl0_t cx player_0;
         render_player ~assets ~t:pl1_t cx player_1;
       end

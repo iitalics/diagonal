@@ -1,9 +1,15 @@
-type t = { pos: Pos.t;
-           anim: anim }
-
-and anim =
+type anim =
   | No_anim
   | Moving of Path.t
+
+let anim_duration = function
+  | No_anim -> 0.
+  | Moving path -> (path |> Path.length)
+                   /. Rules.move_vel
+
+type t =
+  { pos: Pos.t;
+    anim: anim }
 
 let make pos =
   { pos; anim = No_anim }
@@ -19,9 +25,3 @@ let move_to pos' pl =
     anim = Moving (Path.from_points
                      ~src:pl.pos
                      ~tgt:pos') }
-
-let anim_frames an =
-  match an with
-  | No_anim -> 0
-  | Moving pa -> int_of_float @@
-                   ceil (Path.length pa *. Rules.move_rate)

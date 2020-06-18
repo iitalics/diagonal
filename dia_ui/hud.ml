@@ -1,5 +1,4 @@
 module Gameplay = Dia_game.Gameplay
-module Turn = Dia_game.Gameplay.Turn
 module Rules = Dia_game.Rules
 module Item_type = Dia_game.Item_type
 
@@ -10,8 +9,8 @@ module type S = sig
 
   type t
   val make: assets -> Gameplay.t -> t
-  val update_time: float -> t -> unit
-  val update_game: tick_time:float -> Gameplay.t -> t -> unit
+  val update: float -> t -> unit
+  val update_game: float -> Gameplay.t -> t -> unit
 
   type draw_ctxt
   val render: draw_ctxt -> t -> unit
@@ -79,7 +78,7 @@ module Make
 
     and turn_data =
       { tn_num: int;
-        tn_time: float;
+        tn_dur: float;
         (* amt(t) = amt0 + t * amt_v *)
         tn_amt0: float;
         tn_amt_v: float }
@@ -88,23 +87,21 @@ module Make
 
     (*** processing game state data ***)
 
-    let turn_frames_fl = float_of_int Rules.turn_frames
-    let turn_amt_v = ~-. Rules.fps_fl /. turn_frames_fl (* 1/sec *)
+    let start_turn time0 tn_num =
+      (* amt(t0)      = 1
+         amt(t0 + dt) = 0 *)
+      let tn_dur = Rules.turn_duration in
+      let tn_amt_v = -1. /. tn_dur in
+      let tn_amt0 = 1. -. time0 *. tn_amt_v in
+      { tn_num; tn_dur; tn_amt0; tn_amt_v }
 
-    let turn_data_of_turn ~t0 (tn: Turn.t) =
-      let rem_f = Rules.turn_frames - tn.frame in
-      let time  = float_of_int rem_f /. Rules.fps_fl in
-      let amt   = float_of_int rem_f /. turn_frames_fl in
-      (* amt(t) = amt0 + t * amt_v  ==>  amt0 = amt(t) - t * amt_v *)
-      { tn_num = tn.num; tn_time = time;
-        tn_amt0 = amt -. t0 *. turn_amt_v;
-        tn_amt_v = turn_amt_v }
+    let update t hud =
+      hud.time <- t
 
-    let update_time time hud =
-      hud.time <- time
-
-    let update_game ~tick_time:t0 game hud =
-      hud.turn_data <- game |> Gameplay.turn |> turn_data_of_turn ~t0
+    let update_game time0 game hud =
+      let tn_num = game |> Gameplay.turn in
+      if tn_num <> hud.turn_data.tn_num then
+        hud.turn_data <- start_turn time0 tn_num
 
     (*** init ***)
 
@@ -119,7 +116,7 @@ module Make
         time = 0.;
         player_0 = default_player "Player One";
         player_1 = default_player "Player Two";
-        turn_data = { tn_num = -1; tn_time = 0.; tn_amt0 = 0.; tn_amt_v = 0. } }
+        turn_data = { tn_num = 0; tn_dur = 1.0; tn_amt0 = 0.; tn_amt_v = 0. } }
 
     (*** rendering ***)
 
@@ -239,8 +236,11 @@ module Make
                       ~y:(hud_item_alt_text_dy))))
 
     let render_turn_indicator ~assets ~time ~t cx
-          { tn_num; tn_time; tn_amt0; tn_amt_v }
+          { tn_num; tn_dur; tn_amt0; tn_amt_v }
       =
+      let tn_amt = max 0. (tn_amt0 +. time *. tn_amt_v) in
+      let tn_time = tn_amt *. tn_dur in
+
       let t = Affine.extend t in
       t |> Affine.translate_i hud_turn_x hud_turn_y;
 
@@ -253,10 +253,9 @@ module Make
                ~x:(-mes_w / 2) ~y:0);
 
       (* timer bar *)
-      (let amt = max 0. (tn_amt0 +. time *. tn_amt_v) in
-       let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
+      (let x0, x1 = -hud_turn_bar_w / 2, hud_turn_bar_w / 2 in
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
+       let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. tn_amt) in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_turn_bar_fill_c
                ~xs:[| x0; x1'; x1'; x0 |]

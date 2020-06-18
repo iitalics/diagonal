@@ -1,19 +1,14 @@
-module Turn = struct
-  type t = { num: int; frame: int }
-end
-
 type t =
   { pl0: Player.t;
     pl1: Player.t;
     pc0: Player_controller.t;
     pc1: Player_controller.t;
     turn_num: int;
-    phase: phase;
-    f: int }
+    phase: phase }
 
 and phase =
   | Turn of { cu: Pos.t }
-  | Moving of { frames: int }
+  | Moving of { t: float }
 
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
@@ -23,48 +18,42 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
     pl1 = Player.make player_1_spawn;
     pc0; pc1;
     turn_num = 1;
-    phase = Turn { cu = player_0_spawn };
-    f = 0 }
+    phase = Turn { cu = player_0_spawn } }
 
 (* players *)
 
-let player_0 t = t.pl0
-let player_1 t = t.pl1
+let player_0 g = g.pl0
+let player_1 g = g.pl1
 
 (* phases, turns *)
 
-let phase_frames = function
-  | Turn _            -> Rules.turn_frames
-  | Moving { frames } -> frames
+let turn g = g.turn_num
 
-let end_phase t = function
+let phase_duration g = match g.phase with
+  | Turn _       -> Rules.turn_duration
+  | Moving { t } -> t
+
+let end_phase g =
+  match g.phase with
   | Turn { cu } ->
-     let pl0, pc0 = t.pc0
+     let pl0, pc0 = g.pc0
                     |> Player_controller.set_cursor cu
-                    |> Player_controller.commit_turn t.pl0 in
-     let pl1, pc1 = t.pc1
-                    |> Player_controller.commit_turn t.pl1 in
-     let frames = max
-                    (pl0.anim |> Player.anim_frames)
-                    (pl1.anim |> Player.anim_frames) in
-     { t with
+                    |> Player_controller.commit_turn g.pl0 in
+     let pl1, pc1 = g.pc1
+                    |> Player_controller.commit_turn g.pl1 in
+     { g with
        pl0; pl1; pc0; pc1;
-       phase = Moving { frames } }
+       phase = Moving { t = max
+                              (pl0.anim |> Player.anim_duration)
+                              (pl1.anim |> Player.anim_duration) } }
   | Moving _ ->
-     let pl0 = t.pl0 |> Player.stop_moving in
-     let pl1 = t.pl1 |> Player.stop_moving in
+     let pl0 = g.pl0 |> Player.stop_moving in
+     let pl1 = g.pl1 |> Player.stop_moving in
      let cu = pl0.pos in
-     { t with
+     { g with
        pl0; pl1;
-       turn_num = t.turn_num + 1;
+       turn_num = g.turn_num + 1;
        phase = Turn { cu } }
-
-let turn t =
-  let num = t.turn_num in
-  let frame = match t.phase with
-    | Turn _   -> t.f
-    | Moving _ -> Rules.turn_frames in
-  Turn.{ num; frame }
 
 (* cursor, paths *)
 
@@ -115,15 +104,6 @@ let hit_marks _t =
   [ (0, 0) ]
 
 (* events *)
-
-let tick : t -> t =
-  let rec loop t =
-    if t.f >= phase_frames t.phase then
-      loop (end_phase { t with f = 0 } t.phase)
-    else
-      t
-  in
-  fun t -> loop { t with f = t.f + 1 }
 
 let key_dn : Input.Key.t -> _ = function
   | Up    -> move_cursor_by 0 (-1)
