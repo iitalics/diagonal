@@ -63,6 +63,9 @@ let () =
 
     (* draw every frame *)
     ( let rec render_loop time_ms =
+        ignore @@
+          Dom_html.window##requestAnimationFrame
+            (Js.wrap_callback render_loop);
         (* update time *)
         let time = time_ms *. 0.001 in
         the_view_disp |> View_disp.update time;
@@ -70,9 +73,6 @@ let () =
         (* render *)
         the_view_disp |> View_disp.render the_ctxt;
         the_overlay   |> Overlay.render the_ctxt;
-        ignore @@
-          Dom_html.window##requestAnimationFrame
-            (Js.wrap_callback render_loop);
       in
       render_loop @@
         Js.Unsafe.global##.performance##now )
