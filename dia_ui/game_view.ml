@@ -64,16 +64,15 @@ module Make
       { assets: game_assets;
         hud: HUD.t;
         mutable game: Gameplay.t;
-        (* animations *)
-        mutable time: float;
         mutable phase_start_time: float;
         (* players, map *)
+        map_tf: Affine.t;
         mutable player_0: player_data;
         mutable player_1: player_data;
         (* cursor, path *)
-        mutable cursor: Pos.t option;
-        mutable path_data: (Path.t * path_type) list;
-        mutable hit_marks: Pos.t list }
+        mutable cursor: Affine.t option;
+        mutable path_data: path_data list;
+        mutable hit_marks: Affine.t list }
 
     and player_data =
       { (* user info *)
@@ -81,6 +80,7 @@ module Make
         pl_face: int;
         pl_name: string;
         (* map state *)
+        pl_tf: Affine.t;
         pl_pos: Pos.t;
         pl_anim: player_anim;
         pl_base_anim: Player.anim }
@@ -93,135 +93,51 @@ module Make
             x_sgn: float; y_sgn: float;
             axis: Path.axis }
 
-    and path_type =
-      Gameplay.path_type
-
-    (*** processing game state data ***)
-
-    let update_player_data time0 (pl: Player.t) (pd: player_data) =
-      let anim =
-        if pl.anim = pd.pl_base_anim then
-          pd.pl_anim
-        else
-          match pl.anim with
-          | Player.No_anim -> Player_idle
-          | Player.Moving p when Path.is_null p -> Player_idle
-          | Player.Moving ({ s_dis; d_dis; x_sgn; y_sgn; axis; _ } as pa) ->
-             let vel = Rules.move_vel in
-             Player_moving
-               { vel;
-                 dis0  = ~-. time0 *. vel;
-                 s_dis = float_of_int s_dis;
-                 d_dis = float_of_int d_dis;
-                 len   = pa |> Path.length;
-                 x_sgn = float_of_int x_sgn;
-                 y_sgn = float_of_int y_sgn;
-                 axis  = axis }
-      in
-      { pd with
-        pl_pos = pl.pos;
-        pl_anim = anim;
-        pl_base_anim = pl.anim }
-
-    let update_game time0 (game: Gameplay.t) (v: t) =
-      v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
-      v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
-      v.hud |> HUD.update_game time0 game;
-      v.cursor <- game |> Gameplay.cursor;
-      v.hit_marks <- game |> Gameplay.hit_marks;
-      v.path_data <- game |> Gameplay.paths;
-      v.game <- game
-
-    (* init *)
-
-    type init = Gameplay.t
-
-    let default_player color face name =
-      { pl_color = color;
-        pl_face = face;
-        pl_name = name;
-        pl_pos = (0, 0);
-        pl_anim = Player_idle;
-        pl_base_anim = Player.No_anim }
-
-    let make (assets, hud_assets) game =
-      let v0 =
-        { assets;
-          game;
-          hud = HUD.make hud_assets game;
-          (* animations *)
-          time = 0.;
-          phase_start_time = 0.;
-          (* players, map *)
-          player_0 = default_player 0 0 "Player One";
-          player_1 = default_player 3 2 "Player Two";
-          (* cursor, path *)
-          cursor = None;
-          path_data = [];
-          hit_marks = [] }
-      in
-      v0 |> update_game 0. game;
-      v0
-
-    (*** event handling ***)
-
-    let update time v =
-      (* update game phase *)
-      let rec advance_phase_loop start_time =
-        let dur = v.game |> Gameplay.phase_duration in
-        let end_time = start_time +. dur in
-        if time >= end_time then
-          ( v |> update_game end_time (v.game |> Gameplay.end_phase);
-            advance_phase_loop end_time )
-        else
-          v.phase_start_time <- start_time
-      in
-      advance_phase_loop v.phase_start_time;
-      (* update animations *)
-      v.time <- time;
-      v.hud |> HUD.update time
-
-    let handle_evt evt v =
-      let update_by f =
-        v |> update_game v.time (f v.game)
-      in
-      let input_of_key_code = function
-        | "ArrowLeft"  -> Some Input.Key.Left
-        | "ArrowRight" -> Some Input.Key.Right
-        | "ArrowUp"    -> Some Input.Key.Up
-        | "ArrowDown"  -> Some Input.Key.Down
-        | "Escape"     -> Some Input.Key.Esc
-        | _            -> None
-      in
-      match evt with
-      | Evt.Key_dn kc ->
-         input_of_key_code kc |>
-           Option.iter (fun i -> update_by (Gameplay.key_dn i))
-      | Evt.Key_up kc ->
-         input_of_key_code kc |>
-           Option.iter (fun i -> update_by (Gameplay.key_up i))
-
-    let switch _disp _v = ()
+    and path_data =
+      { pa_tf: Affine.t;
+        pa_type: Gameplay.path_type;
+        pa_xs: int array;
+        pa_ys: int array }
 
     (*** rendering ***)
 
-    let bg_c   = Color.of_rgb_s "#5cf"
+    (* map & background *)
 
-    (* -- rendering the map -- *)
+    let bg_c = Color.of_rgb_s "#5cf"
+    let map_y = 260
+    let map_w = 512
 
-    let grid_c = Color.of_rgb_s "#ccc"
+    let update_map_tf (w, _) tf =
+      tf |> Affine.reset;
+      tf |> Affine.translate_i
+                 ((w - map_w) / 2)
+                 map_y
+
+    let render_map_and_bg ~cx { assets; map_tf; _ } =
+      cx |> Ctxt.clear ~c:bg_c;
+      cx |> Ctxt.image assets.map
+              ~x:(-64) ~y:(-64) ~t:map_tf
+              ~sx:0 ~sy:0 ~w:640 ~h:640
+
+    (* grid *)
 
     let cell_w = 64
     let cell_w_fl = float_of_int cell_w
-    let map_w = cell_w * Rules.grid_cols
-    let map_y = 260
 
-    let render_map ~t cx { assets; _ } =
-      cx |> Ctxt.image assets.map
-              ~x:(-64) ~y:(-64) ~t
-              ~sx:0 ~sy:0 ~w:640 ~h:640
+    let translate_to_grid_center (col, row) tf =
+      tf |> Affine.translate_i
+              (col * cell_w + cell_w / 2)
+              (row * cell_w + cell_w / 2)
+
+    let make_grid_center_tf base_tf pos =
+      let tf = Affine.extend base_tf in
+      tf |> translate_to_grid_center pos;
+      tf
+
+    let grid_c = Color.of_rgb_s "#ccc"
 
     let grid_xs, grid_ys =
+      let map_w = cell_w * Rules.grid_cols in
       let rad = 8 in
       let outer1 i = (i   / 2 mod 9    ) * cell_w in
       let outer2 i = (i   / 2   / 9    ) * (map_w - rad) + (i mod 2) * rad in
@@ -241,14 +157,9 @@ module Make
                                else if i < 226 then inner3 (i - 128)
                                else                 inner1 (i - 226))
 
-    let render_grid ~t cx =
+    let render_grid ~cx tf =
       cx |> Ctxt.vertices `Lines
-              ~t ~c:grid_c ~xs:grid_xs ~ys:grid_ys
-
-    let translate_to_grid_center ~t (col, row) =
-      t |> Affine.translate_i
-             (col * cell_w + cell_w / 2)
-             (row * cell_w + cell_w / 2)
+              ~t:tf ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
     let path_sel_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
     let path_pl_c = Color.(of_rgb_s "#fff" |> with_alpha 0.4)
@@ -284,50 +195,53 @@ module Make
       | Path.X -> maj x_sgn, min y_sgn
       | Path.Y -> min x_sgn, maj y_sgn
 
-    let render_path ~t cx c Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn } =
-      let t = Affine.extend t in
-      pos |> translate_to_grid_center ~t;
+    let make_path_data base_tf path typ =
+      let Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn; _ } = path in
+      let tf = make_grid_center_tf base_tf pos in
       let xs, ys = bent_line_coords
                      (s_dis * cell_w)
                      (d_dis * cell_w)
                      x_sgn y_sgn axis in
-      cx |> Ctxt.vertices `Fill
-              ~t ~c ~xs ~ys
+      { pa_tf = tf;
+        pa_type = typ;
+        pa_xs = xs; pa_ys = ys }
 
-    let render_cursor ~t ~assets cx pos =
-      let t = Affine.extend t in
-      pos |> translate_to_grid_center ~t;
+    let render_path ~cx { pa_tf; pa_type; pa_xs; pa_ys } =
+      cx |> Ctxt.vertices `Fill
+              ~t:pa_tf ~c:(path_c pa_type)
+              ~xs:pa_xs ~ys:pa_ys
+
+    let render_cursor ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ~t
+              ~x:(-32) ~y:(-32) ~t:tf
               ~sx:768 ~sy:160 ~w:64 ~h:64
 
-    let render_hit_mark ~t ~assets cx pos =
-      let t = Affine.extend t in
-      pos |> translate_to_grid_center ~t;
+    let render_hit_mark ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ~t
+              ~x:(-32) ~y:(-32) ~t:tf
               ~sx:832 ~sy:160 ~w:64 ~h:64
 
-    let render_grid_elements ~t cx
-          { assets; path_data; cursor; hit_marks; _ }
+    let render_grid_elements ~cx
+          { assets; map_tf; path_data; cursor; hit_marks; _ }
       =
       begin
-        render_grid ~t cx;
-        path_data |> List.iter (fun (pa, pt) -> render_path ~t cx (path_c pt) pa);
-        cursor |> Option.iter (render_cursor ~t ~assets cx);
-        hit_marks |> List.iter (render_hit_mark ~t ~assets cx);
+        map_tf |> render_grid ~cx;
+        path_data |> List.iter (render_path ~cx);
+        cursor |> Option.iter (render_cursor ~assets ~cx);
+        hit_marks |> List.iter (render_hit_mark ~assets ~cx);
       end
 
-    (* -- rendering map elements (players, items) -- *)
+    (* player *)
 
-    let render_blob_img ~assets ?t cx color face =
+    let render_blob_img ~assets ~cx color face tf =
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ?t
+              ~x:(-32) ~y:(-32) ~t:tf
               ~sx:(0 + 64 * face) ~sy:(0 + 64 * color) ~w:64 ~h:64
 
     let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
 
-    let apply_player_anim ~time ~t = function
+    let update_player_anim_tf ~time anim tf =
+      match anim with
       | Player_idle ->
          ()
 
@@ -341,47 +255,142 @@ module Make
          let x_off, y_off = (match axis with
                              | X -> s_off, d_off
                              | Y -> d_off, s_off) in
-         t |> Affine.translate
+         tf |> Affine.translate
                 (x_off *. x_sgn *. cell_w_fl)
                 (y_off *. y_sgn *. cell_w_fl)
 
-    let make_player_transform ~t ~time { pl_pos; pl_anim; _ } =
-      let t = Affine.extend t in
-      pl_pos |> translate_to_grid_center ~t;
-      pl_anim |> apply_player_anim ~time ~t;
-      t
+    let update_player_tf ~time { pl_tf; pl_pos; pl_anim; _ } =
+      pl_tf |> Affine.reset;
+      pl_tf |> translate_to_grid_center pl_pos;
+      pl_tf |> update_player_anim_tf ~time pl_anim
 
-    let render_player ~assets ~t cx { pl_color; pl_face; _ } =
-      render_blob_img ~assets ~t cx pl_color pl_face
+    let render_player ~assets ~cx { pl_tf; pl_color; pl_face; _ } =
+      pl_tf |> render_blob_img ~assets ~cx pl_color pl_face
 
-    let render_map_elements ~t cx
-          { assets; time; player_0; player_1; _ }
-      =
-      begin
-        let pl0_t = player_0 |> make_player_transform ~t ~time in
-        let pl1_t = player_1 |> make_player_transform ~t ~time in
-        render_player ~assets ~t:pl0_t cx player_0;
-        render_player ~assets ~t:pl1_t cx player_1;
-      end
+    let render_players ~cx { assets; player_0; player_1; _ } =
+      player_0 |> render_player ~assets ~cx;
+      player_1 |> render_player ~assets ~cx
 
     (* -- main entry point -- *)
 
-    let render cx v : unit =
-      let (cx_w, _) = cx |> Ctxt.size in
-      cx |> Ctxt.clear ~c:bg_c;
-
-      (* transform for everything on the map *)
-      let map_t = Affine.make () in
-      map_t |> Affine.translate_i
-                 ((cx_w - map_w) / 2)
-                 map_y;
-
-      (* draw stuff *)
+    let render cx v : unit
+      =
       begin
-        v |> render_map ~t:map_t cx;
-        v |> render_grid_elements ~t:map_t cx;
-        v |> render_map_elements ~t:map_t cx;
+        v.map_tf |> update_map_tf (cx |> Ctxt.size);
+        v |> render_map_and_bg ~cx;
+        v |> render_grid_elements ~cx;
+        v |> render_players ~cx;
         v.hud |> HUD.render cx;
         ()
       end
+
+    (*** processing game state data ***)
+
+    let update_player_data time0 (pl: Player.t) (pd: player_data) =
+      let anim =
+        if pl.anim = pd.pl_base_anim then
+          pd.pl_anim
+        else
+          match pl.anim with
+          | Player.No_anim -> Player_idle
+          | Player.Moving p when Path.is_null p -> Player_idle
+          | Player.Moving ({ s_dis; d_dis; x_sgn; y_sgn; axis; _ } as pa) ->
+             let vel = Rules.move_vel in
+             Player_moving
+               { vel;
+                 dis0  = ~-. time0 *. vel;
+                 s_dis = float_of_int s_dis;
+                 d_dis = float_of_int d_dis;
+                 len   = pa |> Path.length;
+                 x_sgn = float_of_int x_sgn;
+                 y_sgn = float_of_int y_sgn;
+                 axis  = axis }
+      in
+      { pd with
+        pl_pos = pl.pos;
+        pl_anim = anim;
+        pl_base_anim = pl.anim }
+
+    let update_game time0 (game: Gameplay.t) (v: t) =
+      v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
+      v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
+      v.hud |> HUD.update_game time0 game;
+      v.cursor <- game |> Gameplay.cursor |> Option.map (make_grid_center_tf v.map_tf);
+      v.hit_marks <- game |> Gameplay.hit_marks |> List.map (make_grid_center_tf v.map_tf);
+      v.path_data <- game |> Gameplay.paths
+                     |> List.map (fun (pa, pt) -> make_path_data v.map_tf pa pt);
+      v.game <- game
+
+    (*** event handling ***)
+
+    let update time v =
+      (* update game phase *)
+      let rec advance_phase_loop start_time =
+        let dur = v.game |> Gameplay.phase_duration in
+        let end_time = start_time +. dur in
+        if time >= end_time then
+          ( v |> update_game end_time (v.game |> Gameplay.end_phase);
+            advance_phase_loop end_time )
+        else
+          v.phase_start_time <- start_time
+      in
+      advance_phase_loop v.phase_start_time;
+      (* update animations *)
+      v.hud |> HUD.update time;
+      v.player_0 |> update_player_tf ~time;
+      v.player_1 |> update_player_tf ~time
+
+    let handle_evt evt v =
+      let update_by f =
+        v |> update_game v.phase_start_time (f v.game)
+      in
+      let input_of_key_code = function
+        | "ArrowLeft"  -> Some Input.Key.Left
+        | "ArrowRight" -> Some Input.Key.Right
+        | "ArrowUp"    -> Some Input.Key.Up
+        | "ArrowDown"  -> Some Input.Key.Down
+        | "Escape"     -> Some Input.Key.Esc
+        | _            -> None
+      in
+      match evt with
+      | Evt.Key_dn kc ->
+         input_of_key_code kc |>
+           Option.iter (fun i -> update_by (Gameplay.key_dn i))
+      | Evt.Key_up kc ->
+         input_of_key_code kc |>
+           Option.iter (fun i -> update_by (Gameplay.key_up i))
+
+    let switch _disp _v = ()
+
+    (*** init ***)
+
+    type init = Gameplay.t
+
+    let make_player_data base_tf color face name =
+      { pl_tf = Affine.extend base_tf;
+        pl_color = color;
+        pl_face = face;
+        pl_name = name;
+        pl_pos = (0, 0);
+        pl_anim = Player_idle;
+        pl_base_anim = Player.No_anim }
+
+    let make (assets, hud_assets) game =
+      let map_tf = Affine.make () in
+      let v0 =
+        { assets;
+          game;
+          hud = HUD.make hud_assets game;
+          phase_start_time = 0.;
+          (* players, map *)
+          map_tf;
+          player_0 = make_player_data map_tf 0 0 "Player One";
+          player_1 = make_player_data map_tf 3 2 "Player Two";
+          (* cursor, path *)
+          cursor = None;
+          path_data = [];
+          hit_marks = [] }
+      in
+      v0 |> update_game 0. game;
+      v0
   end
