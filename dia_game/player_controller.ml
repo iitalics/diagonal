@@ -46,3 +46,23 @@ module Bot_ctrl = struct
 end
 
 let bot_ctrl rng = make (module Bot_ctrl) rng
+
+module Auto_ctrl = struct
+  type t =
+    { queue: Pos.t list;
+      steps: Pos.t list }
+
+  let next = function
+    | ({ queue = x :: xs; _ } |
+         { steps = x :: xs; _ }) as t
+      ->
+       x, { t with queue = xs }
+    | { steps = []; _ }
+      -> failwith "Auto_ctrl.next: steps is empty!"
+
+  let commit_turn ?cursor:_ pl t =
+    let pos, t = t |> next in
+    (pl |> Player.move_to pos), t
+end
+
+let auto_ctrl steps = make (module Auto_ctrl) { queue = []; steps }

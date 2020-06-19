@@ -12,3 +12,4 @@ val make: 'a s -> 'a -> t
 val user_ctrl: t
 val no_ctrl: t
 val bot_ctrl: Prng.t -> t
+val auto_ctrl: Pos.t list -> t
