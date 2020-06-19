@@ -35,12 +35,9 @@ let phase_duration g = match g.phase with
 
 let end_phase g =
   match g.phase with
-  | Turn { cu } ->
-     let pl0, pc0 = g.pc0
-                    |> Player_controller.set_cursor cu
-                    |> Player_controller.commit_turn g.pl0 in
-     let pl1, pc1 = g.pc1
-                    |> Player_controller.commit_turn g.pl1 in
+  | Turn { cu = cursor } ->
+     let pl0, pc0 = g.pc0 |> Player_controller.commit_turn g.pl0 ~cursor in
+     let pl1, pc1 = g.pc1 |> Player_controller.commit_turn g.pl1 in
      { g with
        pl0; pl1; pc0; pc1;
        phase = Moving { t = max

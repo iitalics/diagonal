@@ -1,8 +1,7 @@
 module type S =
   sig
     type t
-    val set_cursor: Pos.t -> t -> t
-    val commit_turn: Player.t -> t -> (Player.t * t)
+    val commit_turn: ?cursor:Pos.t -> Player.t -> t -> (Player.t * t)
   end
 
 include S
