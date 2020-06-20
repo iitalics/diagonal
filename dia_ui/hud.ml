@@ -203,10 +203,9 @@ module Make
     (* turn data *)
 
     let turn_bar_coords amt =
-      let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
-      let x0 = -hud_turn_bar_w / 2 in
-      let x1 = x0 + int_of_float (float_of_int hud_turn_bar_w *. amt) in
-      x0, y0, x1, y1
+      let x0, y0 = -hud_turn_bar_w / 2, hud_turn_bar_dy in
+      let w, h = int_of_float (float_of_int hud_turn_bar_w *. amt), hud_turn_bar_h in
+      x0, y0, x0 + w, y0 + h
 
     let make_turn_data base_tf =
       let tf = base_tf |> Affine.extend in
