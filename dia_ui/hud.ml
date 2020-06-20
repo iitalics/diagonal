@@ -65,6 +65,7 @@ module Make
 
     type t =
       { assets: assets;
+        base_tf: Affine.t;
         mutable time: float;
         mutable player_0: player_data;
         mutable player_1: player_data;
@@ -82,39 +83,6 @@ module Make
         (* amt(t) = amt0 + t * amt_v *)
         tn_amt0: float;
         tn_amt_v: float }
-
-    (*** processing game state data ***)
-
-    let start_turn time0 tn_num =
-      (* amt(t0)      = 1
-         amt(t0 + dt) = 0 *)
-      let tn_dur = Rules.turn_duration in
-      let tn_amt_v = -1. /. tn_dur in
-      let tn_amt0 = 1. -. time0 *. tn_amt_v in
-      { tn_num; tn_dur; tn_amt0; tn_amt_v }
-
-    let update t hud =
-      hud.time <- t
-
-    let update_game time0 game hud =
-      let tn_num = game |> Gameplay.turn in
-      if tn_num <> hud.turn_data.tn_num then
-        hud.turn_data <- start_turn time0 tn_num
-
-    (*** init ***)
-
-    let default_player name =
-      { pl_name = name;
-        pl_hp = Rules.max_hp;
-        pl_item = `S;
-        pl_alt_item = None }
-
-    let make assets _game =
-      { assets;
-        time = 0.;
-        player_0 = default_player "Player One";
-        player_1 = default_player "Player Two";
-        turn_data = { tn_num = 0; tn_dur = 1.0; tn_amt0 = 0.; tn_amt_v = 0. } }
 
     (*** rendering ***)
 
@@ -148,19 +116,25 @@ module Make
     let hud_turn_bar_dy = 20
     let hud_turn_bar_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.6)
 
-    let render_icon_img ~assets ?t cx ty =
+    let update_base_tf (w, _) tf =
+      tf |> Affine.reset;
+      tf |> Affine.translate_i ((w - hud_w) / 2) hud_y
+
+    let bg_xs, bg_ys = [| 0; hud_w; hud_w; 0     |],
+                       [| 0; 0;     hud_h; hud_h |]
+
+    let render_bg cx tf =
+      cx |> Ctxt.vertices `Fill
+              ~t:tf ~c:hud_bg_c
+              ~xs:bg_xs ~ys:bg_ys
+
+    let render_icon_img ~t ~assets cx ty =
       let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ?t
+              ~x:(-32) ~y:(-32) ~t
               ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
 
-    let render_bg ~t cx =
-      cx |> Ctxt.vertices `Fill
-              ~t ~c:hud_bg_c
-              ~xs:[| 0; hud_w; hud_w; 0     |]
-              ~ys:[| 0; 0;     hud_h; hud_h |]
-
-    let render_player ~assets ~t cx i
+    let render_player ~t ~assets cx i
           { pl_name; pl_hp; pl_item; pl_alt_item; _ }
       =
       (* player name *)
@@ -263,15 +237,48 @@ module Make
                ~xs:[| x0; x1; x1; x0; x0 |]
                ~ys:[| y0; y0; y1; y1; y0 |])
 
-    let render cx { assets; player_0; player_1; turn_data; time } =
-      let (cx_w, _) = cx |> Ctxt.size in
-      let t = Affine.make () in
-      t |> Affine.translate_i ((cx_w - hud_w) / 2) hud_y;
+    let render cx { assets; base_tf; player_0; player_1; turn_data; time } =
       begin
-        render_bg ~t cx;
-        render_player ~assets ~t cx 0 player_0;
-        render_player ~assets ~t cx 1 player_1;
-        render_turn_indicator ~assets ~time ~t cx turn_data;
+        base_tf |> update_base_tf (cx |> Ctxt.size);
+        base_tf |> render_bg cx;
+        render_player ~assets ~t:base_tf cx 0 player_0;
+        render_player ~assets ~t:base_tf cx 1 player_1;
+        render_turn_indicator ~assets ~time ~t:base_tf cx turn_data;
         ()
       end
+
+    (*** processing game state data ***)
+
+    let start_turn time0 tn_num =
+      (* amt(t0)      = 1
+         amt(t0 + dt) = 0 *)
+      let tn_dur = Rules.turn_duration in
+      let tn_amt_v = -1. /. tn_dur in
+      let tn_amt0 = 1. -. time0 *. tn_amt_v in
+      { tn_num; tn_dur; tn_amt0; tn_amt_v }
+
+    let update t hud =
+      hud.time <- t
+
+    let update_game time0 game hud =
+      let tn_num = game |> Gameplay.turn in
+      if tn_num <> hud.turn_data.tn_num then
+        hud.turn_data <- start_turn time0 tn_num
+
+    (*** init ***)
+
+    let default_player name =
+      { pl_name = name;
+        pl_hp = Rules.max_hp;
+        pl_item = `S;
+        pl_alt_item = None }
+
+    let make assets _game =
+      let base_tf = Affine.make () in
+      { assets;
+        base_tf;
+        time = 0.;
+        player_0 = default_player "Player One";
+        player_1 = default_player "Player Two";
+        turn_data = { tn_num = 0; tn_dur = 1.0; tn_amt0 = 0.; tn_amt_v = 0. } }
   end
