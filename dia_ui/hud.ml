@@ -83,8 +83,6 @@ module Make
         tn_amt0: float;
         tn_amt_v: float }
 
-    let max_hp = 16
-
     (*** processing game state data ***)
 
     let start_turn time0 tn_num =
@@ -107,7 +105,7 @@ module Make
 
     let default_player name =
       { pl_name = name;
-        pl_hp = 16;
+        pl_hp = Rules.max_hp;
         pl_item = `S;
         pl_alt_item = None }
 
@@ -184,7 +182,7 @@ module Make
                +     i * (hud_w - hud_hpbar_w - hud_left))
               hud_hpbar_y;
        let w  = hud_hpbar_w in
-       let w' = hud_hpbar_w * pl_hp / max_hp in
+       let w' = hud_hpbar_w * pl_hp / Rules.max_hp in
        let h  = hud_hpbar_h in
        cx |> Ctxt.vertices `Fill
                ~t ~c:hud_hpbar_fill_c.(i)
