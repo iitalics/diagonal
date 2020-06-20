@@ -74,14 +74,19 @@ module Make
     and player_data =
       { pl_name: string;
         pl_hp: int;
-        pl_item: Item_type.t }
+        pl_item: Item_type.t;
+        pl_name_tf: Affine.t;
+        pl_hpbar_tf: Affine.t;
+        pl_items_tf: Affine.t;
+        pl_item_icon_tf: Affine.t }
 
     and turn_data =
-      { tn_num: int;
-        tn_dur: float;
+      { tn_tf: Affine.t;
+        mutable tn_num: int;
+        mutable tn_dur: float;
         (* amt(t) = amt0 + t * amt_v *)
-        tn_amt0: float;
-        tn_amt_v: float }
+        mutable tn_amt0: float;
+        mutable tn_amt_v: float }
 
     (*** rendering ***)
 
@@ -121,81 +126,94 @@ module Make
               ~t:tf ~c:hud_bg_c
               ~xs:bg_xs ~ys:bg_ys
 
-    let render_icon_img ~t ~assets cx ty =
+    let render_icon_img ~assets cx ty tf =
       let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ~t
+              ~x:(-32) ~y:(-32) ~t:tf
               ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
 
-    let render_player ~t ~assets cx i
-          { pl_name; pl_hp; pl_item; _ }
+    let make_player_data ~name ~hp ~item base_tf i =
+      let name_tf = base_tf |> Affine.extend in
+      let hpbar_tf = base_tf |> Affine.extend in
+      let items_tf = base_tf |> Affine.extend in
+      let item_icon_tf = items_tf |> Affine.extend in
+      name_tf |> Affine.translate_i
+                   ((1 - i) * hud_left
+                    +     i * (hud_w - hud_left))
+                   hud_top;
+      hpbar_tf |> Affine.translate_i
+                    ((1 - i) * hud_left
+                     +     i * (hud_w - hud_hpbar_w - hud_left))
+                    hud_hpbar_y;
+      items_tf |> Affine.translate_i
+                    ((1 - i) * hud_item_x
+                     +     i * (hud_w - hud_item_x))
+                    hud_item_y;
+      item_icon_tf |> Affine.scale
+                        hud_item_scale hud_item_scale;
+      { pl_name = name;
+        pl_hp = hp;
+        pl_item = item;
+        pl_name_tf = name_tf;
+        pl_hpbar_tf = hpbar_tf;
+        pl_items_tf = items_tf;
+        pl_item_icon_tf = item_icon_tf }
+
+    let render_player ~assets cx i
+          { pl_name; pl_hp; pl_item;
+            pl_name_tf; pl_hpbar_tf; pl_items_tf; pl_item_icon_tf }
       =
       (* player name *)
       (let font = assets.p_name_font in
        let (mes_w, _) = font |> Font.measure pl_name in
-       let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_left
-               +     i * (hud_w - hud_left))
-              hud_top;
-       cx |> Ctxt.text pl_name ~t ~c:hud_c ~font
-               ~x:(i * -mes_w)
-               ~y:0);
+       cx |> Ctxt.text pl_name
+               ~c:hud_c ~font ~t:pl_name_tf
+               ~x:(i * -mes_w) ~y:0 );
 
       (* hp bar *)
-      (let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_left
-               +     i * (hud_w - hud_hpbar_w - hud_left))
-              hud_hpbar_y;
-       let w  = hud_hpbar_w in
+      (let w  = hud_hpbar_w in
        let w' = hud_hpbar_w * pl_hp / Rules.max_hp in
        let h  = hud_hpbar_h in
        cx |> Ctxt.vertices `Fill
-               ~t ~c:hud_hpbar_fill_c.(i)
+               ~c:hud_hpbar_fill_c.(i) ~t:pl_hpbar_tf
                ~xs:[| 0; w'; w'; 0 |]
                ~ys:[| 0; 0; h; h |];
        cx |> Ctxt.vertices `Strip
-               ~t ~c:hud_c
+               ~c:hud_c ~t:pl_hpbar_tf
                ~xs:[| 0; w; w; 0; 0 |]
                ~ys:[| 0; 0; h; h; 0 |]);
 
       (* items *)
-      (let t = Affine.extend t in
-       t |> Affine.translate_i
-              ((1 - i) * hud_item_x
-               +     i * (hud_w - hud_item_x))
-              hud_item_y;
+      (pl_item_icon_tf |> render_icon_img ~assets cx pl_item;
+       let font = assets.act_item_font in
+       let (mes_w, _) = font |> Font.measure hud_item_act_text in
+       cx |> Ctxt.text hud_item_act_text
+               ~font ~c:hud_item_act_text_c ~t:pl_items_tf
+               ~x:(-mes_w / 2)
+               ~y:hud_item_act_text_dy)
 
-       (* primary item *)
-       (let item = pl_item in
-        let t = Affine.extend t in
-        t |> Affine.scale hud_item_scale hud_item_scale;
-        render_icon_img ~assets ~t cx item);
+    let make_turn_data base_tf =
+      let tf = base_tf |> Affine.extend in
+      tf |> Affine.translate_i
+              hud_turn_x
+              hud_turn_y;
+      { tn_tf = tf; tn_num = 0; tn_dur = 0.; tn_amt0 = 0.; tn_amt_v = 0. }
 
-       (* active item text *)
-       (let font = assets.act_item_font in
-        let (mes_w, _) = font |> Font.measure hud_item_act_text in
-        cx |> Ctxt.text hud_item_act_text
-                ~t ~font ~c:hud_item_act_text_c
-                ~x:(-mes_w / 2)
-                ~y:hud_item_act_text_dy))
-
-    let render_turn_indicator ~assets ~time ~t cx
-          { tn_num; tn_dur; tn_amt0; tn_amt_v }
+    let render_turn_indicator ~assets ~time cx
+          { tn_tf; tn_num; tn_dur; tn_amt0; tn_amt_v }
       =
       let tn_amt = max 0. (tn_amt0 +. time *. tn_amt_v) in
       let tn_time = tn_amt *. tn_dur in
 
-      let t = Affine.extend t in
-      t |> Affine.translate_i hud_turn_x hud_turn_y;
+      (* let t = Affine.extend t in
+      t |> Affine.translate_i hud_turn_x hud_turn_y; *)
 
       (* timer text *)
       (let text = Printf.sprintf "turn %d (%.1fs)" tn_num tn_time in
        let font = assets.turn_font in
        let (mes_w, _) = font |> Font.measure text in
        cx |> Ctxt.text text
-               ~t ~font ~c:hud_c
+               ~font ~c:hud_c ~t:tn_tf
                ~x:(-mes_w / 2) ~y:0);
 
       (* timer bar *)
@@ -203,11 +221,11 @@ module Make
        let y0, y1 = hud_turn_bar_dy, hud_turn_bar_dy + hud_turn_bar_h in
        let x1' = x0 + int_of_float (float_of_int hud_turn_bar_w *. tn_amt) in
        cx |> Ctxt.vertices `Fill
-               ~t ~c:hud_turn_bar_fill_c
+               ~c:hud_turn_bar_fill_c ~t:tn_tf
                ~xs:[| x0; x1'; x1'; x0 |]
                ~ys:[| y0;  y0;  y1; y1 |];
        cx |> Ctxt.vertices `Strip
-               ~t ~c:hud_c
+               ~c:hud_c ~t:tn_tf
                ~xs:[| x0; x1; x1; x0; x0 |]
                ~ys:[| y0; y0; y1; y1; y0 |])
 
@@ -215,21 +233,21 @@ module Make
       begin
         base_tf |> update_base_tf (cx |> Ctxt.size);
         base_tf |> render_bg cx;
-        render_player ~assets ~t:base_tf cx 0 player_0;
-        render_player ~assets ~t:base_tf cx 1 player_1;
-        render_turn_indicator ~assets ~time ~t:base_tf cx turn_data;
+        render_player ~assets cx 0 player_0;
+        render_player ~assets cx 1 player_1;
+        render_turn_indicator ~assets ~time cx turn_data;
         ()
       end
 
     (*** processing game state data ***)
 
-    let start_turn time0 tn_num =
+    let start_turn time0 num tn =
       (* amt(t0)      = 1
          amt(t0 + dt) = 0 *)
-      let tn_dur = Rules.turn_duration in
-      let tn_amt_v = -1. /. tn_dur in
-      let tn_amt0 = 1. -. time0 *. tn_amt_v in
-      { tn_num; tn_dur; tn_amt0; tn_amt_v }
+      tn.tn_num <- num;
+      tn.tn_dur <- Rules.turn_duration;
+      tn.tn_amt_v <- -1. /. Rules.turn_duration;
+      tn.tn_amt0 <- 1. -. time0 *. tn.tn_amt_v
 
     let update t hud =
       hud.time <- t
@@ -237,21 +255,18 @@ module Make
     let update_game time0 game hud =
       let tn_num = game |> Gameplay.turn in
       if tn_num <> hud.turn_data.tn_num then
-        hud.turn_data <- start_turn time0 tn_num
+        hud.turn_data |> start_turn time0 tn_num
 
     (*** init ***)
-
-    let default_player name =
-      { pl_name = name;
-        pl_hp = Rules.max_hp;
-        pl_item = `S }
 
     let make assets _game =
       let base_tf = Affine.make () in
       { assets;
         base_tf;
         time = 0.;
-        player_0 = default_player "Player One";
-        player_1 = default_player "Player Two";
-        turn_data = { tn_num = 0; tn_dur = 1.0; tn_amt0 = 0.; tn_amt_v = 0. } }
+        player_0 = make_player_data base_tf 0
+                     ~name:"Player One" ~hp:Rules.max_hp ~item:`S;
+        player_1 = make_player_data base_tf 1
+                     ~name:"Player Two" ~hp:Rules.max_hp ~item:`H;
+        turn_data = make_turn_data base_tf }
   end
