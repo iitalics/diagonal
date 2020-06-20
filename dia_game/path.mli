@@ -15,4 +15,5 @@ val null: src:Pos.t -> t
 val source: t -> Pos.t
 val target: t -> Pos.t
 val length: t -> float
+val points: t -> Pos.t list
 val is_null: t -> bool

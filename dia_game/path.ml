@@ -51,3 +51,13 @@ let[@ocaml.inline] from_points ~src:(x0, y0) ~tgt:(x1, y1) =
 
 let[@ocaml.inline] null ~src =
   from_origin ~pos:src ~dx:0 ~dy:0
+
+(* compute points on path *)
+
+let points { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
+  List.init (1 + s_dis + d_dis)
+    (fun i ->
+      let j = max 0 (i - s_dis) in
+      match axis with
+      | X -> (x0 + i * x_sgn, y0 + j * y_sgn)
+      | Y -> (x0 + j * x_sgn, y0 + i * y_sgn))

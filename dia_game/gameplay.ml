@@ -9,7 +9,13 @@ type t =
 and phase =
   | Turn of { cu: Pos.t }
   | Moving of { t: float }
-  | Damage of { nothing: unit }
+  | Damage of { hits: hits }
+
+and hits =
+  { hits_player_0: hit list;
+    hits_player_1: hit list }
+
+and hit = Pos.t
 
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
@@ -25,6 +31,22 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
 
 let player_0 g = g.pl0
 let player_1 g = g.pl1
+
+(* attacks and damage *)
+
+let no_hits =
+  { hits_player_0 = [];
+    hits_player_1 = [] }
+
+let player_hits (pl: Player.t) =
+  match pl.anim with
+  | Player.No_anim -> []
+  | Player.Moving pa -> Path.points pa
+
+let hits t =
+  match t.phase with
+  | Damage { hits } -> hits
+  | Turn _ | Moving _ -> no_hits
 
 (* phases, turns *)
 
@@ -48,8 +70,8 @@ let to_turn_phase g =
   { g with phase = Turn { cu } }
   |> inc_turn
 
-let to_damage_phase g =
-  { g with phase = Damage { nothing = () } }
+let to_damage_phase ~hits g =
+  { g with phase = Damage { hits } }
 
 let end_phase g =
   match g.phase with
@@ -60,32 +82,17 @@ let end_phase g =
        { g with pl0; pl1; pc0; pc1 }
 
   | Moving _ ->
+     let hits =
+       { hits_player_0 = g.pl0 |> player_hits;
+         hits_player_1 = g.pl1 |> player_hits } in
      let pl0 = g.pl0 |> Player.stop_moving in
      let pl1 = g.pl1 |> Player.stop_moving in
      to_damage_phase
        { g with pl0; pl1 }
+       ~hits
 
   | Damage _ ->
      to_turn_phase g
-
-(* attacks and damage *)
-
-type hits =
-  { hits_player_0: hit list;
-    hits_player_1: hit list }
-
-and hit = Pos.t
-
-let no_hits =
-  { hits_player_0 = [];
-    hits_player_1 = [] }
-
-let hits t =
-  match t.phase with
-  | Damage _ ->
-     { hits_player_0 = [ (0, 0) ];
-       hits_player_1 = [ (7, 7) ] }
-  | Turn _ | Moving _ -> no_hits
 
 (* cursor, paths *)
 
