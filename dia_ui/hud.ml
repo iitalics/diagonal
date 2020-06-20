@@ -74,8 +74,7 @@ module Make
     and player_data =
       { pl_name: string;
         pl_hp: int;
-        pl_item: Item_type.t;
-        pl_alt_item: Item_type.t option }
+        pl_item: Item_type.t }
 
     and turn_data =
       { tn_num: int;
@@ -100,15 +99,9 @@ module Make
     let hud_item_x  = 56 (* 32 *)
     let hud_item_y  = 84
     let hud_item_scale = 0.8
-    let hud_item_alt_dx = 110 (* 80 *)
-    let hud_item_alt_dy = 0
-    let hud_item_alt_scale = 0.65
     let hud_item_act_text = "active item"
     let hud_item_act_text_c = Color.of_rgb_s "#ff0"
     let hud_item_act_text_dy = 24
-    let hud_item_alt_text = "secondary"
-    let hud_item_alt_text_c = Color.of_rgb_s "#111"
-    let hud_item_alt_text_dy = 20
     let hud_turn_x = hud_w / 2
     let hud_turn_y = 78
     let hud_turn_bar_w = 160
@@ -135,7 +128,7 @@ module Make
               ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
 
     let render_player ~t ~assets cx i
-          { pl_name; pl_hp; pl_item; pl_alt_item; _ }
+          { pl_name; pl_hp; pl_item; _ }
       =
       (* player name *)
       (let font = assets.p_name_font in
@@ -186,26 +179,7 @@ module Make
         cx |> Ctxt.text hud_item_act_text
                 ~t ~font ~c:hud_item_act_text_c
                 ~x:(-mes_w / 2)
-                ~y:hud_item_act_text_dy);
-
-       pl_alt_item |>
-         Option.iter (fun item ->
-             (* alt item *)
-             (let t = Affine.extend t in
-              t |> Affine.translate_i
-                     ((1 - 2 * i) * hud_item_alt_dx)
-                     hud_item_alt_dy;
-              t |> Affine.scale
-                     hud_item_alt_scale hud_item_alt_scale;
-              render_icon_img ~assets ~t cx item);
-
-             (* alt item text *)
-             (let font = assets.act_item_font in
-              let (mes_w, _) = font |> Font.measure hud_item_alt_text in
-              cx |> Ctxt.text hud_item_alt_text
-                      ~t ~font ~c:hud_item_alt_text_c
-                      ~x:((1 - 2 * i) * hud_item_alt_dx - mes_w / 2)
-                      ~y:(hud_item_alt_text_dy))))
+                ~y:hud_item_act_text_dy))
 
     let render_turn_indicator ~assets ~time ~t cx
           { tn_num; tn_dur; tn_amt0; tn_amt_v }
@@ -270,8 +244,7 @@ module Make
     let default_player name =
       { pl_name = name;
         pl_hp = Rules.max_hp;
-        pl_item = `S;
-        pl_alt_item = None }
+        pl_item = `S }
 
     let make assets _game =
       let base_tf = Affine.make () in
