@@ -68,6 +68,25 @@ let end_phase g =
   | Damage _ ->
      to_turn_phase g
 
+(* attacks and damage *)
+
+type hits =
+  { hits_player_0: hit list;
+    hits_player_1: hit list }
+
+and hit = Pos.t
+
+let no_hits =
+  { hits_player_0 = [];
+    hits_player_1 = [] }
+
+let hits t =
+  match t.phase with
+  | Damage _ ->
+     { hits_player_0 = [ (0, 0) ];
+       hits_player_1 = [ (7, 7) ] }
+  | Turn _ | Moving _ -> no_hits
+
 (* cursor, paths *)
 
 type path_type =
@@ -113,11 +132,6 @@ let cursor t =
   match t.phase with
   | Turn { cu } -> Some(cu)
   | Moving _ | Damage _ -> None
-
-let hit_marks t =
-  match t.phase with
-  | Damage _ -> [ (0, 0); (7, 7) ]
-  | Turn _ | Moving _ -> []
 
 (* events *)
 

@@ -72,7 +72,7 @@ module Make
         (* cursor, path *)
         mutable cursor: Affine.t option;
         mutable path_data: path_data array;
-        mutable hit_marks: Affine.t list }
+        mutable hit_marks: Affine.t array }
 
     and player_data =
       { (* user info *)
@@ -228,6 +228,11 @@ module Make
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx:768 ~sy:160 ~w:64 ~h:64
 
+    let make_hit_mark_array base_tf (h: Gameplay.hits) =
+      (h.hits_player_0 @ h.hits_player_1)
+      |> List.map (make_grid_center_tf base_tf)
+      |> Array.of_list
+
     let render_hit_mark ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
@@ -240,7 +245,7 @@ module Make
         map_tf |> render_grid ~cx;
         path_data |> Array.iter (render_path ~cx);
         cursor |> Option.iter (render_cursor ~assets ~cx);
-        hit_marks |> List.iter (render_hit_mark ~assets ~cx);
+        hit_marks |> Array.iter (render_hit_mark ~assets ~cx);
       end
 
     (* player *)
@@ -327,8 +332,8 @@ module Make
       v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
       v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
       v.hud |> HUD.update_game time0 game;
-      v.hit_marks <- game |> Gameplay.hit_marks |> List.map (make_grid_center_tf v.map_tf);
       v.cursor <- game |> Gameplay.cursor |> make_cursor_data v.map_tf;
+      v.hit_marks <- game |> Gameplay.hits |> make_hit_mark_array v.map_tf;
       v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
       v.game <- game
 
@@ -400,7 +405,7 @@ module Make
           (* cursor, path *)
           cursor = None;
           path_data = [||];
-          hit_marks = [] }
+          hit_marks = [||] }
       in
       v0 |> update_game 0. game;
       v0
