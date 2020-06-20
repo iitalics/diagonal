@@ -41,19 +41,25 @@ module Make
 
     type game_assets =
       { sprites: Image.t;
-        map:     Image.t }
+        map:     Image.t;
+        dmg_font: Font.t }
 
     let game_assets_rsrc =
       let images =
         Rsrc.(all [ image ~path:"sprites";
                     image ~path:"map_stone" ])
       in
-      Rsrc.map
+      let fonts =
+        Rsrc.font ~family:"nunito" ~size:16
+      in
+      Rsrc.map2
         (fun[@ocaml.warning "-8"]
             [ sprites; map ]
+            dmg_font
          ->
-          { sprites; map })
+          { sprites; map; dmg_font })
         images
+        fonts
 
     type assets = game_assets * HUD.assets
     let assets_rsrc = Rsrc.both game_assets_rsrc HUD.assets_rsrc
@@ -220,6 +226,8 @@ module Make
 
     (* cursor, hit marks *)
 
+    let dmg_text_c = Color.of_rgb_s "#f00"
+
     let update_cursor_tf (cur: Pos.t option) tf =
       tf |> Affine.reset;
       match cur with
@@ -236,10 +244,13 @@ module Make
       |> List.map (make_grid_center_tf base_tf)
       |> Array.of_list
 
-    let render_hit_mark ~assets ~cx tf =
+    let render_hit_mark ~assets ~cx i tf =
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:832 ~sy:160 ~w:64 ~h:64
+              ~sx:832 ~sy:160 ~w:64 ~h:64;
+      cx |> Ctxt.text (Printf.sprintf "(%d)" i)
+              ~x:32 ~y:(-10) ~t:tf
+              ~font:assets.dmg_font ~c:dmg_text_c
 
     let render_grid_elements ~cx
           { assets; map_tf; path_data; cursor_tf; hit_marks; _ }
@@ -248,7 +259,7 @@ module Make
         map_tf |> render_grid ~cx;
         path_data |> Array.iter (render_path ~cx);
         cursor_tf |> render_cursor ~assets ~cx;
-        hit_marks |> Array.iter (render_hit_mark ~assets ~cx);
+        hit_marks |> Array.iteri (render_hit_mark ~assets ~cx);
       end
 
     (* player *)

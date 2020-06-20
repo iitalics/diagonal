@@ -58,7 +58,7 @@ let inc_turn g =
 let phase_duration g = match g.phase with
   | Turn _       -> Rules.turn_duration
   | Moving { t } -> t
-  | Damage _     -> 1.
+  | Damage _     -> 3.
 
 let to_moving_phase g =
   let t0 = g.pl0.anim |> Player.anim_duration in
