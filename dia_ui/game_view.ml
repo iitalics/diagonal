@@ -70,7 +70,7 @@ module Make
         mutable player_0: player_data;
         mutable player_1: player_data;
         (* cursor, path *)
-        mutable cursor: Affine.t option;
+        cursor_tf: Affine.t;
         mutable path_data: path_data array;
         mutable hit_marks: Affine.t array }
 
@@ -220,8 +220,11 @@ module Make
 
     (* cursor, hit marks *)
 
-    let make_cursor_data base_tf (cursor: Pos.t option) =
-      cursor |> Option.map (make_grid_center_tf base_tf)
+    let update_cursor_tf (cur: Pos.t option) tf =
+      tf |> Affine.reset;
+      match cur with
+      | Some(pos) -> tf |> translate_to_grid_center pos
+      | None      -> tf |> Affine.scale 0. 0.
 
     let render_cursor ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
@@ -239,12 +242,12 @@ module Make
               ~sx:832 ~sy:160 ~w:64 ~h:64
 
     let render_grid_elements ~cx
-          { assets; map_tf; path_data; cursor; hit_marks; _ }
+          { assets; map_tf; path_data; cursor_tf; hit_marks; _ }
       =
       begin
         map_tf |> render_grid ~cx;
         path_data |> Array.iter (render_path ~cx);
-        cursor |> Option.iter (render_cursor ~assets ~cx);
+        cursor_tf |> render_cursor ~assets ~cx;
         hit_marks |> Array.iter (render_hit_mark ~assets ~cx);
       end
 
@@ -332,7 +335,7 @@ module Make
       v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
       v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
       v.hud |> HUD.update_game time0 game;
-      v.cursor <- game |> Gameplay.cursor |> make_cursor_data v.map_tf;
+      v.cursor_tf |> update_cursor_tf (game |> Gameplay.cursor);
       v.hit_marks <- game |> Gameplay.hits |> make_hit_mark_array v.map_tf;
       v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
       v.game <- game
@@ -403,7 +406,7 @@ module Make
           player_0 = make_player_data map_tf 0 0 "Player One";
           player_1 = make_player_data map_tf 3 2 "Player Two";
           (* cursor, path *)
-          cursor = None;
+          cursor_tf = map_tf |> Affine.extend;
           path_data = [||];
           hit_marks = [||] }
       in
