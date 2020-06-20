@@ -71,7 +71,8 @@ module Make
         mutable turn_data: turn_data }
 
     and player_data =
-      { pl_name: string;
+      { pl_idx: int;
+        pl_name: string;
         pl_hp: int;
         pl_item: Item_type.t;
         pl_name_tf: Affine.t;
@@ -157,7 +158,8 @@ module Make
                     hud_item_y;
       item_icon_tf |> Affine.scale
                         hud_item_scale hud_item_scale;
-      { pl_name = name;
+      { pl_idx = i;
+        pl_name = name;
         pl_hp = hp;
         pl_item = item;
         pl_name_tf = name_tf;
@@ -165,8 +167,8 @@ module Make
         pl_items_tf = items_tf;
         pl_item_icon_tf = item_icon_tf }
 
-    let render_player ~assets cx i
-          { pl_name; pl_hp; pl_item;
+    let render_player ~assets cx
+          { pl_idx; pl_name; pl_hp; pl_item;
             pl_name_tf; pl_hpbar_tf; pl_items_tf; pl_item_icon_tf }
       =
       (* player name *)
@@ -174,14 +176,14 @@ module Make
        let (mes_w, _) = font |> Font.measure pl_name in
        cx |> Ctxt.text pl_name
                ~c:hud_c ~font ~t:pl_name_tf
-               ~x:(i * -mes_w) ~y:0 );
+               ~x:(pl_idx * -mes_w) ~y:0 );
 
       (* hp bar *)
       (let w  = hud_hpbar_w in
        let w' = hud_hpbar_w * pl_hp / Rules.max_hp in
        let h  = hud_hpbar_h in
        cx |> Ctxt.vertices `Fill
-               ~c:hud_hpbar_fill_c.(i) ~t:pl_hpbar_tf
+               ~c:hud_hpbar_fill_c.(pl_idx) ~t:pl_hpbar_tf
                ~xs:[| 0; w'; w'; 0 |]
                ~ys:[| 0; 0; h; h |];
        cx |> Ctxt.vertices `Strip
@@ -219,6 +221,14 @@ module Make
         tn_bar_o = [| x0; x1; x1; x0; x0 |], [| y0; y0; y1; y1; y0 |];
         tn_bar_f = [| x0; x1; x1; x0 |],     [| y0; y0; y1; y1 |] }
 
+    let start_turn time0 num tn =
+      (* amt(t0)      = 1
+         amt(t0 + dt) = 0 *)
+      tn.tn_num <- num;
+      tn.tn_dur <- Rules.turn_duration;
+      tn.tn_amt_v <- -1. /. Rules.turn_duration;
+      tn.tn_amt0 <- 1. -. time0 *. tn.tn_amt_v
+
     let update_turn time
           ({ tn_num; tn_dur; tn_amt0; tn_amt_v; _ } as tn)
       =
@@ -252,20 +262,12 @@ module Make
       begin
         base_tf |> update_base_tf (cx |> Ctxt.size);
         base_tf |> render_bg cx;
-        player_0 |> render_player ~assets cx 0;
-        player_1 |> render_player ~assets cx 1;
+        player_0 |> render_player ~assets cx;
+        player_1 |> render_player ~assets cx;
         turn_data |> render_turn_indicator ~assets cx;
       end
 
     (*** processing game state data ***)
-
-    let start_turn time0 num tn =
-      (* amt(t0)      = 1
-         amt(t0 + dt) = 0 *)
-      tn.tn_num <- num;
-      tn.tn_dur <- Rules.turn_duration;
-      tn.tn_amt_v <- -1. /. Rules.turn_duration;
-      tn.tn_amt0 <- 1. -. time0 *. tn.tn_amt_v
 
     let update time hud =
       hud.turn_data |> update_turn time
