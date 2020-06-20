@@ -71,7 +71,7 @@ module Make
         mutable player_1: player_data;
         (* cursor, path *)
         mutable cursor: Affine.t option;
-        mutable path_data: path_data list;
+        mutable path_data: path_data array;
         mutable hit_marks: Affine.t list }
 
     and player_data =
@@ -161,6 +161,8 @@ module Make
       cx |> Ctxt.vertices `Lines
               ~t:tf ~c:grid_c ~xs:grid_xs ~ys:grid_ys
 
+    (* path *)
+
     let path_sel_c = Color.(of_rgb_s "#fff" |> with_alpha 0.3)
     let path_pl_c = Color.(of_rgb_s "#fff" |> with_alpha 0.4)
     let path_c = function
@@ -206,10 +208,20 @@ module Make
         pa_type = typ;
         pa_xs = xs; pa_ys = ys }
 
+    let make_path_data_array base_tf (path_list: (Path.t * Gameplay.path_type) list) =
+      path_list
+      |> List.map (fun (pa, pt) -> make_path_data base_tf pa pt)
+      |> Array.of_list
+
     let render_path ~cx { pa_tf; pa_type; pa_xs; pa_ys } =
       cx |> Ctxt.vertices `Fill
               ~t:pa_tf ~c:(path_c pa_type)
               ~xs:pa_xs ~ys:pa_ys
+
+    (* cursor, hit marks *)
+
+    let make_cursor_data base_tf (cursor: Pos.t option) =
+      cursor |> Option.map (make_grid_center_tf base_tf)
 
     let render_cursor ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
@@ -226,7 +238,7 @@ module Make
       =
       begin
         map_tf |> render_grid ~cx;
-        path_data |> List.iter (render_path ~cx);
+        path_data |> Array.iter (render_path ~cx);
         cursor |> Option.iter (render_cursor ~assets ~cx);
         hit_marks |> List.iter (render_hit_mark ~assets ~cx);
       end
@@ -315,10 +327,9 @@ module Make
       v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
       v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
       v.hud |> HUD.update_game time0 game;
-      v.cursor <- game |> Gameplay.cursor |> Option.map (make_grid_center_tf v.map_tf);
       v.hit_marks <- game |> Gameplay.hit_marks |> List.map (make_grid_center_tf v.map_tf);
-      v.path_data <- game |> Gameplay.paths
-                     |> List.map (fun (pa, pt) -> make_path_data v.map_tf pa pt);
+      v.cursor <- game |> Gameplay.cursor |> make_cursor_data v.map_tf;
+      v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
       v.game <- game
 
     (*** event handling ***)
@@ -388,7 +399,7 @@ module Make
           player_1 = make_player_data map_tf 3 2 "Player Two";
           (* cursor, path *)
           cursor = None;
-          path_data = [];
+          path_data = [||];
           hit_marks = [] }
       in
       v0 |> update_game 0. game;
