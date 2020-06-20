@@ -56,13 +56,23 @@ let[@ocaml.inline] null ~src =
 
 type mark = M_attk | M_dfnd | M_crit | M_vuln
 
-let points { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
-  List.init (1 + s_dis + d_dis)
+let n_points { s_dis; d_dis; _ } =
+  1 + s_dis + d_dis
+
+let points ({ pos = (x0, y0); s_dis; axis; x_sgn; y_sgn; _ } as pa) =
+  List.init (pa |> n_points)
     (fun i ->
       let j = max 0 (i - s_dis) in
       match axis with
       | X -> (x0 + i * x_sgn, y0 + j * y_sgn)
       | Y -> (x0 + j * x_sgn, y0 + i * y_sgn))
 
-let marks _ =
-  failwith "Path.marks: unimplemented"
+let marks ({ s_dis; d_dis; _ } as pa) =
+  List.init (pa |> n_points)
+    (fun i ->
+      if d_dis = 0 || i < s_dis then
+        M_vuln
+      else if s_dis = 0 || i > s_dis then
+        M_attk
+      else
+        M_crit)
