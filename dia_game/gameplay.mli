@@ -8,7 +8,9 @@ type hits =
   { hits_player_0: hit list;
     hits_player_1: hit list }
 
-and hit = Pos.t
+and hit =
+  { hit_pos: Pos.t;
+    hit_mark: Path.mark }
 
 val make: player_ctrl_0:Player_controller.t
           -> player_ctrl_1:Player_controller.t

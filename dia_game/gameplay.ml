@@ -15,7 +15,9 @@ and hits =
   { hits_player_0: hit list;
     hits_player_1: hit list }
 
-and hit = Pos.t
+and hit =
+  { hit_pos: Pos.t;
+    hit_mark: Path.mark }
 
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
@@ -41,7 +43,10 @@ let no_hits =
 let player_hits (pl: Player.t) =
   match pl.anim with
   | Player.No_anim -> []
-  | Player.Moving pa -> Path.points pa
+  | Player.Moving pa ->
+     List.rev_map2 (fun hit_pos hit_mark -> { hit_pos; hit_mark })
+       (pa |> Path.points)
+       (pa |> Path.marks)
 
 let hits t =
   match t.phase with

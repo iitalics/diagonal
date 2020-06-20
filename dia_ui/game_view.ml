@@ -6,6 +6,7 @@ module Path = Dia_game.Path
 module Player = Dia_game.Player
 module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
+open Util
 
 module type S =
   View.S with type init = Gameplay.t
@@ -27,7 +28,7 @@ module Make
 
     module Rsrc = struct
       include Rsrc
-      include Util.Applicative(Rsrc)
+      include Applicative(Rsrc)
     end
 
     module Ctxt = Draw.Ctxt
@@ -241,15 +242,14 @@ module Make
               ~sx:768 ~sy:160 ~w:64 ~h:64
 
     let make_hit_mark_array base_tf (h: Gameplay.hits) =
-      let tfs =
+      let tfs, mks =
         (h.hits_player_0 @ h.hits_player_1)
-        |> List.map (make_grid_center_tf base_tf)
-        |> Array.of_list
+        |> List.map
+             (fun Gameplay.{ hit_pos; hit_mark } ->
+               (make_grid_center_tf base_tf hit_pos, hit_mark))
+        |> List.rev_split
       in
-      let mks =
-        tfs |> Array.map (fun _ -> Path.M_dfnd)
-      in
-      mks, tfs
+      Array.of_list mks, Array.of_list tfs
 
     let render_hit_mark ~assets ~cx i typ tf =
       let sx, sy = match typ with
@@ -261,16 +261,24 @@ module Make
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx ~sy ~w:64 ~h:64;
+      ignore (dmg_text_c, i)
+      (*
       cx |> Ctxt.text (Printf.sprintf "(%d)" i)
               ~x:32 ~y:(-10) ~t:tf
-              ~font:assets.dmg_font ~c:dmg_text_c
+              ~font:assets.dmg_font ~c:dmg_text_c *)
 
-    let render_grid_elements ~cx
-          { assets; map_tf; path_data; cursor_tf; hit_marks; hit_mark_tfs; _ }
+    let render_grid_elements_below ~cx
+          { map_tf; path_data; _ }
       =
       begin
         map_tf |> render_grid ~cx;
         path_data |> Array.iter (render_path ~cx);
+      end
+
+    let render_grid_elements_above ~cx
+          { assets; cursor_tf; hit_marks; hit_mark_tfs; _ }
+      =
+      begin
         cursor_tf |> render_cursor ~assets ~cx;
         hit_marks |> Array.iteri
                        (fun i typ ->
@@ -324,8 +332,9 @@ module Make
       begin
         v.map_tf |> update_map_tf (cx |> Ctxt.size);
         v |> render_map_and_bg ~cx;
-        v |> render_grid_elements ~cx;
+        v |> render_grid_elements_below ~cx;
         v |> render_players ~cx;
+        v |> render_grid_elements_above ~cx;
         v.hud |> HUD.render cx;
         ()
       end
