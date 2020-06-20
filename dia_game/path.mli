@@ -1,5 +1,5 @@
 type t =
-  { pos: int * int;
+  { pos: Pos.t;
     s_dis: int;
     d_dis: int;
     x_sgn: int;
@@ -8,11 +8,11 @@ type t =
 
 and axis = X | Y
 
-val from_origin: pos:int * int -> dx:int -> dy:int -> t
-val from_points: src:int * int -> tgt:int * int -> t
-val null: src:int * int -> t
+val from_origin: pos:Pos.t -> dx:int -> dy:int -> t
+val from_points: src:Pos.t -> tgt:Pos.t -> t
+val null: src:Pos.t -> t
 
-val source: t -> int * int
-val target: t -> int * int
+val source: t -> Pos.t
+val target: t -> Pos.t
 val length: t -> float
 val is_null: t -> bool

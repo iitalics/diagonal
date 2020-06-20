@@ -1,5 +1,5 @@
 type t =
-  { pos: int * int;
+  { pos: Pos.t;
     s_dis: int;
     d_dis: int;
     x_sgn: int;
