@@ -9,6 +9,7 @@ type t =
 and phase =
   | Turn of { cu: Pos.t }
   | Moving of { t: float }
+  | Damage of { nothing: unit }
 
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
@@ -29,28 +30,43 @@ let player_1 g = g.pl1
 
 let turn g = g.turn_num
 
+let inc_turn g =
+  { g with turn_num = g.turn_num + 1 }
+
 let phase_duration g = match g.phase with
   | Turn _       -> Rules.turn_duration
   | Moving { t } -> t
+  | Damage _     -> 1.
+
+let to_moving_phase g =
+  let t0 = g.pl0.anim |> Player.anim_duration in
+  let t1 = g.pl1.anim |> Player.anim_duration in
+  { g with phase = Moving { t = max t0 t1 } }
+
+let to_turn_phase g =
+  let cu = g.pl0.pos in
+  { g with phase = Turn { cu } }
+  |> inc_turn
+
+let to_damage_phase g =
+  { g with phase = Damage { nothing = () } }
 
 let end_phase g =
   match g.phase with
   | Turn { cu = cursor } ->
      let pl0, pc0 = g.pc0 |> Player_controller.commit_turn g.pl0 ~cursor in
      let pl1, pc1 = g.pc1 |> Player_controller.commit_turn g.pl1 in
-     { g with
-       pl0; pl1; pc0; pc1;
-       phase = Moving { t = max
-                              (pl0.anim |> Player.anim_duration)
-                              (pl1.anim |> Player.anim_duration) } }
+     to_moving_phase
+       { g with pl0; pl1; pc0; pc1 }
+
   | Moving _ ->
      let pl0 = g.pl0 |> Player.stop_moving in
      let pl1 = g.pl1 |> Player.stop_moving in
-     let cu = pl0.pos in
-     { g with
-       pl0; pl1;
-       turn_num = g.turn_num + 1;
-       phase = Turn { cu } }
+     to_damage_phase
+       { g with pl0; pl1 }
+
+  | Damage _ ->
+     to_turn_phase g
 
 (* cursor, paths *)
 
@@ -68,6 +84,7 @@ let paths t =
                       Select_path)
                      :: k
     | Moving _    -> k
+    | Damage _    -> k
   in
   phase_path t.phase
     (player_anim_path t.pl0.anim
@@ -82,23 +99,25 @@ let[@ocaml.inline] move_cursor_by dx dy t =
      let cu = (grid_clamp (cx + dx),
                grid_clamp (cy + dy)) in
      { t with phase = Turn { cu } }
-  | Moving _ ->
+  | Moving _ | Damage _ ->
      t
 
 let[@ocaml.inline] reset_cursor t =
   match t.phase with
   | Turn { cu = _ } ->
      { t with phase = Turn { cu = t.pl0.pos } }
-  | Moving _ ->
+  | Moving _ | Damage _ ->
      t
 
 let cursor t =
   match t.phase with
   | Turn { cu } -> Some(cu)
-  | Moving _    -> None
+  | Moving _ | Damage _ -> None
 
-let hit_marks _t =
-  [ (0, 0) ]
+let hit_marks t =
+  match t.phase with
+  | Damage _ -> [ (0, 0); (7, 7) ]
+  | Turn _ | Moving _ -> []
 
 (* events *)
 
