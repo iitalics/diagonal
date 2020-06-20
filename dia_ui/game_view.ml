@@ -78,7 +78,8 @@ module Make
         (* cursor, path *)
         cursor_tf: Affine.t;
         mutable path_data: path_data array;
-        mutable hit_marks: Affine.t array }
+        mutable hit_marks: Path.mark array;
+        mutable hit_mark_tfs: Affine.t array }
 
     and player_data =
       { (* user info *)
@@ -240,26 +241,40 @@ module Make
               ~sx:768 ~sy:160 ~w:64 ~h:64
 
     let make_hit_mark_array base_tf (h: Gameplay.hits) =
-      (h.hits_player_0 @ h.hits_player_1)
-      |> List.map (make_grid_center_tf base_tf)
-      |> Array.of_list
+      let tfs =
+        (h.hits_player_0 @ h.hits_player_1)
+        |> List.map (make_grid_center_tf base_tf)
+        |> Array.of_list
+      in
+      let mks =
+        tfs |> Array.map (fun _ -> Path.M_dfnd)
+      in
+      mks, tfs
 
-    let render_hit_mark ~assets ~cx i tf =
+    let render_hit_mark ~assets ~cx i typ tf =
+      let sx, sy = match typ with
+        | Path.M_attk -> 832, 160
+        | Path.M_dfnd -> 832, 224
+        | Path.M_crit -> 896, 160
+        | Path.M_vuln -> 896, 224
+      in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:832 ~sy:160 ~w:64 ~h:64;
+              ~sx ~sy ~w:64 ~h:64;
       cx |> Ctxt.text (Printf.sprintf "(%d)" i)
               ~x:32 ~y:(-10) ~t:tf
               ~font:assets.dmg_font ~c:dmg_text_c
 
     let render_grid_elements ~cx
-          { assets; map_tf; path_data; cursor_tf; hit_marks; _ }
+          { assets; map_tf; path_data; cursor_tf; hit_marks; hit_mark_tfs; _ }
       =
       begin
         map_tf |> render_grid ~cx;
         path_data |> Array.iter (render_path ~cx);
         cursor_tf |> render_cursor ~assets ~cx;
-        hit_marks |> Array.iteri (render_hit_mark ~assets ~cx);
+        hit_marks |> Array.iteri
+                       (fun i typ ->
+                         hit_mark_tfs.(i) |> render_hit_mark ~assets ~cx i typ);
       end
 
     (* player *)
@@ -343,12 +358,19 @@ module Make
         pl_base_anim = pl.anim }
 
     let update_game time0 (game: Gameplay.t) (v: t) =
+      (* players *)
       v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
       v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
-      v.hud |> HUD.update_game time0 game;
+      (* cursor *)
       v.cursor_tf |> update_cursor_tf (game |> Gameplay.cursor);
-      v.hit_marks <- game |> Gameplay.hits |> make_hit_mark_array v.map_tf;
+      (* hit marks *)
+      let hit_mks, hit_tfs = game |> Gameplay.hits |> make_hit_mark_array v.map_tf in
+      v.hit_marks <- hit_mks;
+      v.hit_mark_tfs <- hit_tfs;
+      (* paths *)
       v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
+      (* HUD *)
+      v.hud |> HUD.update_game time0 game;
       v.game <- game
 
     (*** event handling ***)
@@ -419,7 +441,8 @@ module Make
           (* cursor, path *)
           cursor_tf = map_tf |> Affine.extend;
           path_data = [||];
-          hit_marks = [||] }
+          hit_marks = [||];
+          hit_mark_tfs = [||] }
       in
       v0 |> update_game 0. game;
       v0

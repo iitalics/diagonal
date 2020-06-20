@@ -54,6 +54,8 @@ let[@ocaml.inline] null ~src =
 
 (* compute points on path *)
 
+type mark = M_attk | M_dfnd | M_crit | M_vuln
+
 let points { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
   List.init (1 + s_dis + d_dis)
     (fun i ->
@@ -61,3 +63,6 @@ let points { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
       match axis with
       | X -> (x0 + i * x_sgn, y0 + j * y_sgn)
       | Y -> (x0 + j * x_sgn, y0 + i * y_sgn))
+
+let marks _ =
+  failwith "Path.marks: unimplemented"
