@@ -133,12 +133,6 @@ module Make
 
     (* player info *)
 
-    let render_icon_img ~assets cx ty tf =
-      let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
-      cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
-
     let make_player_data ~name ~hp ~item base_tf i =
       let name_tf = base_tf |> Affine.extend in
       let hpbar_tf = base_tf |> Affine.extend in
@@ -166,6 +160,12 @@ module Make
         pl_hpbar_tf = hpbar_tf;
         pl_items_tf = items_tf;
         pl_item_icon_tf = item_icon_tf }
+
+    let render_icon_img ~assets cx ty tf =
+      let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
+      cx |> Ctxt.image assets.sprites
+              ~x:(-32) ~y:(-32) ~t:tf
+              ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
 
     let render_player ~assets cx
           { pl_idx; pl_name; pl_hp; pl_item;
