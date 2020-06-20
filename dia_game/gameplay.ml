@@ -99,9 +99,7 @@ let paths t =
     | Player.Moving pa -> (pa, Player_path) :: k
   in
   let phase_path ph k = match ph with
-    | Turn { cu } -> (Path.from_points ~src:t.pl0.pos ~tgt:cu,
-                      Select_path)
-                     :: k
+    | Turn { cu } -> (Path.from_points ~src:t.pl0.pos ~tgt:cu, Select_path) :: k
     | Moving _    -> k
     | Damage _    -> k
   in
