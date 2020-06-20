@@ -25,3 +25,16 @@ module Option = struct
   include A0
   include A1
 end
+
+module List = struct
+  let rev_split xys =
+    let rec loop xs ys = function
+      | (x, y) :: xys ->
+         loop (x :: xs) (y :: ys) xys
+      | [] ->
+         (xs, ys)
+    in
+    loop [] [] xys
+
+  include List
+end
