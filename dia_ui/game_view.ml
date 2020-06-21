@@ -223,7 +223,7 @@ module Make
 
     let make_path_data_array base_tf (path_list: (Path.t * Gameplay.path_type) list) =
       path_list
-      |> List.map (fun (pa, pt) -> make_path_data base_tf pa pt)
+      |> List.rev_map (fun (pa, pt) -> make_path_data base_tf pa pt)
       |> Array.of_list
 
     let render_path ~cx { pa_tf; pa_type; pa_xs; pa_ys } =
@@ -249,7 +249,7 @@ module Make
     let make_hit_mark_array base_tf (h: Gameplay.hits) =
       let tfs, mks =
         (h.hits_player_0 @ h.hits_player_1)
-        |> List.map
+        |> List.rev_map
              (fun Gameplay.{ hit_pos; hit_type } ->
                (make_grid_center_tf base_tf hit_pos, hit_type))
         |> List.rev_split
