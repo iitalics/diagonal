@@ -130,8 +130,8 @@ let end_phase g =
   | Moving { path0; path1 } ->
      let hits = collision_hits path0 path1 in
      let (dmg0, dmg1) = hits |> damage_of_hits in
-     let pl0 = g.pl0 |> Player.stop_moving |> Player.take_damage dmg0 in
-     let pl1 = g.pl1 |> Player.stop_moving |> Player.take_damage dmg1 in
+     let pl0 = g.pl0 |> Player.stop_moving |> Player.take_damage dmg1 in
+     let pl1 = g.pl1 |> Player.stop_moving |> Player.take_damage dmg0 in
      to_damage_phase
        { g with pl0; pl1 }
        ~hits
