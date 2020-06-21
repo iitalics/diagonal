@@ -36,6 +36,9 @@ let player_1 g = g.pl1
 
 (* attacks and damage *)
 
+let compare_hit_pos { hit_pos = p1; _ } { hit_pos = p2; _ } =
+  Pos.compare p1 p2
+
 let player_hit_list (pl: Player.t) =
   let path =
     match pl.anim with
@@ -46,17 +49,43 @@ let player_hit_list (pl: Player.t) =
     (fun hit_pos hit_mark -> { hit_pos; hit_mark })
     (path |> Path.points)
     (path |> Path.marks)
-  |> List.sort
-       (fun { hit_pos = p1; _ } { hit_pos = p2; _ } ->
-         Pos.compare p1 p2)
+  |> List.sort compare_hit_pos
 
 let no_hits =
   { hits_player_0 = [];
     hits_player_1 = [] }
 
-let collision_hits (hs0: hit list) (hs1: hit list) =
-  { hits_player_0 = hs0;
-    hits_player_1 = hs1 }
+let beats m1 m2 =
+  match m1 with
+  | Path.M_crit -> m2 <> Path.M_crit
+  | Path.M_attk -> m2 <> Path.M_crit && m2 <> Path.M_attk
+  | _ -> false
+
+ (* let defends m1 m2 =
+  (m1 = m2 && (m1 = Path.M_crit || m1 = Path.M_attk))
+  || m1 = Path.M_dfnd
+  || m2 = Path.M_dfnd *)
+
+let collision_hits (hs0: hit list) (hs1: hit list) : hits =
+  let cons0 h { hits_player_0; hits_player_1 } =
+    { hits_player_0 = h :: hits_player_0; hits_player_1 } in
+  let cons1 h { hits_player_0; hits_player_1 } =
+    { hits_player_0; hits_player_1 = h :: hits_player_1 } in
+  Util.List.merge_fold
+    ~compare:compare_hit_pos
+    (fun acc _     -> acc)
+    (fun acc    _   -> acc)
+    (fun acc h0 h1 ->
+      if beats h0.hit_mark h1.hit_mark then
+        cons0 h0 acc
+      else if beats h1.hit_mark h0.hit_mark then
+        cons1 h1 acc
+      else
+        acc)
+    no_hits
+    hs0
+    hs1
+
 
 let hits t =
   match t.phase with
