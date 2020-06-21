@@ -4,10 +4,13 @@ type anim =
 
 type t =
   { pos: Pos.t;
+    hp: int;
     anim: anim }
 
 let make pos =
-  { pos; anim = No_anim }
+  { pos;
+    hp = Rules.max_hp;
+    anim = No_anim }
 
 let stop_moving pl =
   match pl.anim with
@@ -20,6 +23,9 @@ let move_to pos' pl =
     anim = Moving (Path.from_points
                      ~src:pl.pos
                      ~tgt:pos') }
+
+let take_damage dmg pl =
+  { pl with hp = max 0 (pl.hp - dmg) }
 
 let path pl =
   match pl.anim with

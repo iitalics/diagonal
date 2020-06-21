@@ -83,6 +83,15 @@ let hits g =
   | Damage { hits } -> hits
   | Turn _ | Moving _ -> no_hits
 
+let damage_of_hit_type = function
+  | Crit -> 2
+  | Attk -> 1
+
+let damage_of_hits hs =
+  let doh { hit_type; _ } = hit_type |> damage_of_hit_type in
+  (hs.hits_player_0 |> List.sum_by doh,
+   hs.hits_player_1 |> List.sum_by doh)
+
 (* phases, turns *)
 
 let turn g = g.turn_num
@@ -120,8 +129,9 @@ let end_phase g =
 
   | Moving { path0; path1 } ->
      let hits = collision_hits path0 path1 in
-     let pl0 = g.pl0 |> Player.stop_moving in
-     let pl1 = g.pl1 |> Player.stop_moving in
+     let (dmg0, dmg1) = hits |> damage_of_hits in
+     let pl0 = g.pl0 |> Player.stop_moving |> Player.take_damage dmg0 in
+     let pl1 = g.pl1 |> Player.stop_moving |> Player.take_damage dmg1 in
      to_damage_phase
        { g with pl0; pl1 }
        ~hits
