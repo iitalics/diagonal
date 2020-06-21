@@ -1,6 +1,7 @@
 module Gameplay = Dia_game.Gameplay
-module Rules = Dia_game.Rules
 module Item_type = Dia_game.Item_type
+module Player = Dia_game.Player
+module Rules = Dia_game.Rules
 
 module type S = sig
   type assets
@@ -73,7 +74,7 @@ module Make
     and player_data =
       { pl_idx: int;
         pl_name: string;
-        pl_hp: int;
+        mutable pl_hp: int;
         pl_item: Item_type.t;
         pl_name_tf: Affine.t;
         pl_hpbar_tf: Affine.t;
@@ -133,7 +134,12 @@ module Make
 
     (* player info *)
 
-    let make_player_data ~name ~hp ~item base_tf i =
+    let make_player_data base_tf i (pl: Player.t) =
+      (* basic data *)
+      let name = [| "Player One"; "Player Two" |].(i) in
+      let item = [| `S; `H |].(i) in
+      let hp = pl.hp in
+      (* transformation matrices *)
       let name_tf = base_tf |> Affine.extend in
       let hpbar_tf = base_tf |> Affine.extend in
       let items_tf = base_tf |> Affine.extend in
@@ -160,6 +166,10 @@ module Make
         pl_hpbar_tf = hpbar_tf;
         pl_items_tf = items_tf;
         pl_item_icon_tf = item_icon_tf }
+
+    let update_player_data time0 (pl: Player.t) (pl_data: player_data) =
+      ignore time0;
+      pl_data.pl_hp <- pl.hp
 
     let render_icon_img ~assets cx ty tf =
       let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
@@ -272,19 +282,23 @@ module Make
       hud.turn_data |> update_turn time
 
     let update_game time0 game hud =
-      let tn_num = game |> Gameplay.turn in
-      if tn_num <> hud.turn_data.tn_num then
-        hud.turn_data |> start_turn time0 tn_num
+      begin
+        (* turn *)
+        let tn_num = game |> Gameplay.turn in
+        if tn_num <> hud.turn_data.tn_num then
+          hud.turn_data |> start_turn time0 tn_num;
+        (* players *)
+        hud.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
+        hud.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
+      end
 
     (*** init ***)
 
-    let make assets _game =
+    let make assets game =
       let base_tf = Affine.make () in
       { assets;
         base_tf;
-        player_0 = make_player_data base_tf 0
-                     ~name:"Player One" ~hp:Rules.max_hp ~item:`S;
-        player_1 = make_player_data base_tf 1
-                     ~name:"Player Two" ~hp:Rules.max_hp ~item:`H;
+        player_0 = game |> Gameplay.player_0 |> make_player_data base_tf 0;
+        player_1 = game |> Gameplay.player_1 |> make_player_data base_tf 1;
         turn_data = make_turn_data base_tf }
   end
