@@ -1,3 +1,5 @@
+module List = Util.List
+
 type t =
   { pl0: Player.t;
     pl1: Player.t;
@@ -8,7 +10,7 @@ type t =
 
 and phase =
   | Turn of { cu: Pos.t }
-  | Moving of { t: float }
+  | Moving of { path0: Path.t; path1: Path.t }
   | Damage of { hits: hits }
 
 and hits =
@@ -17,7 +19,15 @@ and hits =
 
 and hit =
   { hit_pos: Pos.t;
-    hit_mark: Path.mark }
+    hit_type: hit_type }
+
+and hit_type =
+  | Crit
+  | Attk
+
+type point_type = Path.point_type
+
+(* init *)
 
 let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
@@ -36,59 +46,40 @@ let player_1 g = g.pl1
 
 (* attacks and damage *)
 
-let compare_hit_pos { hit_pos = p1; _ } { hit_pos = p2; _ } =
-  Pos.compare p1 p2
-
-let player_hit_list (pl: Player.t) =
-  let path =
-    match pl.anim with
-    | Player.No_anim -> Path.null ~src:pl.pos
-    | Player.Moving pa -> pa
-  in
-  List.rev_map2
-    (fun hit_pos hit_mark -> { hit_pos; hit_mark })
-    (path |> Path.points)
-    (path |> Path.marks)
-  |> List.sort compare_hit_pos
-
 let no_hits =
   { hits_player_0 = [];
     hits_player_1 = [] }
 
-let beats m1 m2 =
-  match m1 with
-  | Path.M_crit -> m2 <> Path.M_crit
-  | Path.M_attk -> m2 <> Path.M_crit && m2 <> Path.M_attk
-  | _ -> false
+let hit_cons0 h { hits_player_0; hits_player_1 } =
+  { hits_player_0 = h :: hits_player_0; hits_player_1 }
 
- (* let defends m1 m2 =
-  (m1 = m2 && (m1 = Path.M_crit || m1 = Path.M_attk))
-  || m1 = Path.M_dfnd
-  || m2 = Path.M_dfnd *)
+let hit_cons1 h { hits_player_0; hits_player_1 } =
+  { hits_player_0; hits_player_1 = h :: hits_player_1 }
 
-let collision_hits (hs0: hit list) (hs1: hit list) : hits =
-  let cons0 h { hits_player_0; hits_player_1 } =
-    { hits_player_0 = h :: hits_player_0; hits_player_1 } in
-  let cons1 h { hits_player_0; hits_player_1 } =
-    { hits_player_0; hits_player_1 = h :: hits_player_1 } in
-  Util.List.merge_fold
-    ~compare:compare_hit_pos
-    (fun acc _     -> acc)
-    (fun acc    _   -> acc)
-    (fun acc h0 h1 ->
-      if beats h0.hit_mark h1.hit_mark then
-        cons0 h0 acc
-      else if beats h1.hit_mark h0.hit_mark then
-        cons1 h1 acc
-      else
-        acc)
+let collision_hit_type (typ0: point_type) (typ1: point_type) =
+  match typ0, typ1 with
+  | Crit, Vuln -> `P0 Crit
+  | Vuln, Crit -> `P1 Crit
+  | Crit, Attk | Attk, Vuln -> `P0 Attk
+  | Attk, Crit | Vuln, Attk -> `P1 Attk
+  | Crit, Crit | Attk, Attk | Vuln, Vuln -> `No
+
+let collision_hits path0 path1 =
+  let compare (pos1, _) (pos2, _) = Pos.compare pos1 pos2 in
+  List.merge_fold ~compare
+    (fun acc _ -> acc)
+    (fun acc _ -> acc)
+    (fun acc (hit_pos, typ0) (_, typ1) ->
+      match collision_hit_type typ0 typ1 with
+      | `P0 hit_type -> hit_cons0 { hit_pos; hit_type } acc
+      | `P1 hit_type -> hit_cons1 { hit_pos; hit_type } acc
+      | `No          -> acc)
     no_hits
-    hs0
-    hs1
+    (path0 |> Path.points |> List.sort compare)
+    (path1 |> Path.points |> List.sort compare)
 
-
-let hits t =
-  match t.phase with
+let hits g =
+  match g.phase with
   | Damage { hits } -> hits
   | Turn _ | Moving _ -> no_hits
 
@@ -100,14 +91,16 @@ let inc_turn g =
   { g with turn_num = g.turn_num + 1 }
 
 let phase_duration g = match g.phase with
-  | Turn _       -> Rules.turn_duration
-  | Moving { t } -> t
-  | Damage _     -> 3.
+  | Turn _ -> Rules.turn_duration
+  | Damage _ -> 3.
+  | Moving { path0; path1 } ->
+     max (Path.length path0 /. Rules.move_vel)
+       (Path.length path1 /. Rules.move_vel)
 
 let to_moving_phase g =
-  let t0 = g.pl0.anim |> Player.anim_duration in
-  let t1 = g.pl1.anim |> Player.anim_duration in
-  { g with phase = Moving { t = max t0 t1 } }
+  let path0 = g.pl0 |> Player.path in
+  let path1 = g.pl1 |> Player.path in
+  { g with phase = Moving { path0; path1 } }
 
 let to_turn_phase g =
   let cu = g.pl0.pos in
@@ -125,10 +118,8 @@ let end_phase g =
      to_moving_phase
        { g with pl0; pl1; pc0; pc1 }
 
-  | Moving _ ->
-     let hits = collision_hits
-                  (g.pl0 |> player_hit_list)
-                  (g.pl1 |> player_hit_list) in
+  | Moving { path0; path1 } ->
+     let hits = collision_hits path0 path1 in
      let pl0 = g.pl0 |> Player.stop_moving in
      let pl1 = g.pl1 |> Player.stop_moving in
      to_damage_phase

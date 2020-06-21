@@ -17,9 +17,11 @@ module Make
                              and type image = Draw.Image.t)
          (View_disp: View.Dispatcher_S with type draw_ctxt = Draw.Ctxt.t
                                         and type 'a rsrc = 'a Rsrc.t)
+(*
        : S with type 'a rsrc = 'a Rsrc.t
             and type view_disp = View_disp.t
             and type draw_ctxt = Draw.Ctxt.t
+ *)
   =
   struct
     type 'a rsrc = 'a Rsrc.t
@@ -79,7 +81,7 @@ module Make
         (* cursor, path *)
         cursor_tf: Affine.t;
         mutable path_data: path_data array;
-        mutable hit_marks: Path.mark array;
+        mutable hit_marks: hit_type array;
         mutable hit_mark_tfs: Affine.t array }
 
     and player_data =
@@ -106,6 +108,9 @@ module Make
         pa_type: Gameplay.path_type;
         pa_xs: int array;
         pa_ys: int array }
+
+    and hit_type =
+      Gameplay.hit_type
 
     (*** rendering ***)
 
@@ -245,18 +250,18 @@ module Make
       let tfs, mks =
         (h.hits_player_0 @ h.hits_player_1)
         |> List.map
-             (fun Gameplay.{ hit_pos; hit_mark } ->
-               (make_grid_center_tf base_tf hit_pos, hit_mark))
+             (fun Gameplay.{ hit_pos; hit_type } ->
+               (make_grid_center_tf base_tf hit_pos, hit_type))
         |> List.rev_split
       in
       Array.of_list mks, Array.of_list tfs
 
-    let render_hit_mark ~assets ~cx i typ tf =
+    let render_hit_mark ~assets ~cx i (typ: hit_type) tf =
       let sx, sy = match typ with
-        | Path.M_attk -> 832, 160
-        | Path.M_dfnd -> 832, 224
-        | Path.M_crit -> 896, 160
-        | Path.M_vuln -> 896, 224
+        | Attk -> 832, 160
+        | Crit -> 896, 160
+        (* | Dfnd -> 832, 224
+           | Vuln -> 896, 224 *)
       in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf

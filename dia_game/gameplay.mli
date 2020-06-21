@@ -10,7 +10,11 @@ type hits =
 
 and hit =
   { hit_pos: Pos.t;
-    hit_mark: Path.mark }
+    hit_type: hit_type }
+
+and hit_type =
+  | Crit
+  | Attk
 
 val make: player_ctrl_0:Player_controller.t
           -> player_ctrl_1:Player_controller.t

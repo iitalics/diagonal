@@ -2,11 +2,6 @@ type anim =
   | No_anim
   | Moving of Path.t
 
-let anim_duration = function
-  | No_anim -> 0.
-  | Moving path -> (path |> Path.length)
-                   /. Rules.move_vel
-
 type t =
   { pos: Pos.t;
     anim: anim }
@@ -25,3 +20,8 @@ let move_to pos' pl =
     anim = Moving (Path.from_points
                      ~src:pl.pos
                      ~tgt:pos') }
+
+let path pl =
+  match pl.anim with
+  | No_anim -> Path.null ~src:pl.pos
+  | Moving pa -> pa
