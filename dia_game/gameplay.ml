@@ -36,17 +36,27 @@ let player_1 g = g.pl1
 
 (* attacks and damage *)
 
+let player_hit_list (pl: Player.t) =
+  let path =
+    match pl.anim with
+    | Player.No_anim -> Path.null ~src:pl.pos
+    | Player.Moving pa -> pa
+  in
+  List.rev_map2
+    (fun hit_pos hit_mark -> { hit_pos; hit_mark })
+    (path |> Path.points)
+    (path |> Path.marks)
+  |> List.sort
+       (fun { hit_pos = p1; _ } { hit_pos = p2; _ } ->
+         Pos.compare p1 p2)
+
 let no_hits =
   { hits_player_0 = [];
     hits_player_1 = [] }
 
-let player_hits (pl: Player.t) =
-  match pl.anim with
-  | Player.No_anim -> []
-  | Player.Moving pa ->
-     List.rev_map2 (fun hit_pos hit_mark -> { hit_pos; hit_mark })
-       (pa |> Path.points)
-       (pa |> Path.marks)
+let collision_hits (hs0: hit list) (hs1: hit list) =
+  { hits_player_0 = hs0;
+    hits_player_1 = hs1 }
 
 let hits t =
   match t.phase with
@@ -87,9 +97,9 @@ let end_phase g =
        { g with pl0; pl1; pc0; pc1 }
 
   | Moving _ ->
-     let hits =
-       { hits_player_0 = g.pl0 |> player_hits;
-         hits_player_1 = g.pl1 |> player_hits } in
+     let hits = collision_hits
+                  (g.pl0 |> player_hit_list)
+                  (g.pl1 |> player_hit_list) in
      let pl0 = g.pl0 |> Player.stop_moving in
      let pl1 = g.pl1 |> Player.stop_moving in
      to_damage_phase
