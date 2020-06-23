@@ -1,3 +1,4 @@
+module Entity = Dia_game.Entity
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
@@ -73,33 +74,33 @@ module Make
         hud: HUD.t;
         mutable game: Gameplay.t;
         mutable phase_start_time: float;
-        (* players, map *)
+        (* map, entities *)
         map_tf: Affine.t;
-        mutable player_0: player_data;
-        mutable player_1: player_data;
+        mutable ents: entity_data array;
         (* cursor, path *)
         cursor_tf: Affine.t;
         mutable path_data: path_data array;
         mutable hit_marks: hit_type array;
         mutable hit_mark_tfs: Affine.t array }
 
-    and player_data =
-      { (* user info *)
-        pl_color: int;
-        pl_face: int;
-        (* map state *)
-        pl_tf: Affine.t;
-        pl_pos: Pos.t;
-        pl_anim: player_anim;
-        pl_base_anim: Player.anim }
+    and entity_data =
+      { en_id: Entity.id;
+        en_look: entity_look;
+        en_tf: Affine.t;
+        mutable en_y: float }
 
-    and player_anim =
-      | Player_idle
-      | Player_moving of
-          { dis0: float; vel: float;
-            s_dis: float; d_dis: float; len: float;
-            x_sgn: float; y_sgn: float;
-            axis: Path.axis }
+    and entity_look =
+      | Hidden
+      | Blob of
+          { color: int; face: int;
+            x: float; y: float;
+            path: path_anim option }
+
+    and path_anim =
+      { dis0: float; vel: float;
+        s_dis: float; d_dis: float; len: float;
+        x_sgn: float; y_sgn: float;
+        axis: Path.axis }
 
     and path_data =
       { pa_tf: Affine.t;
@@ -135,15 +136,14 @@ module Make
     let cell_w = 64
     let cell_w_fl = float_of_int cell_w
 
-    let translate_to_grid_center (col, row) tf =
-      tf |> Affine.translate_i
-              (col * cell_w + cell_w / 2)
-              (row * cell_w + cell_w / 2)
+    let[@ocaml.inline] translate_to_grid_center_fl (col, row) tf =
+      tf |> Affine.translate
+              ((col +. 0.5) *. cell_w_fl)
+              ((row +. 0.5) *. cell_w_fl)
 
-    let make_grid_center_tf base_tf pos =
-      let tf = Affine.extend base_tf in
-      tf |> translate_to_grid_center pos;
-      tf
+    let[@ocaml.inline] translate_to_grid_center (col, row) tf =
+      tf |> translate_to_grid_center_fl
+              (float_of_int col, float_of_int row)
 
     let grid_c = Color.of_rgb_s "#ccc"
 
@@ -210,7 +210,8 @@ module Make
 
     let make_path_data base_tf path typ =
       let Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn; _ } = path in
-      let tf = make_grid_center_tf base_tf pos in
+      let tf = base_tf |> Affine.extend in
+      tf |> translate_to_grid_center pos;
       let xs, ys = bent_line_coords
                      (s_dis * cell_w)
                      (d_dis * cell_w)
@@ -249,7 +250,9 @@ module Make
         (h.hits_player_0 @ h.hits_player_1)
         |> List.rev_map
              (fun Gameplay.{ hit_pos; hit_type } ->
-               (make_grid_center_tf base_tf hit_pos, hit_type))
+               let tf = base_tf |> Affine.extend in
+               tf |> translate_to_grid_center hit_pos;
+               (tf, hit_type))
         |> List.rev_split
       in
       Array.of_list mks, Array.of_list tfs
@@ -288,45 +291,96 @@ module Make
                          hit_mark_tfs.(i) |> render_hit_mark ~assets ~cx i typ);
       end
 
-    (* player *)
+    (* entities *)
+
+    let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
+
+    let make_path_anim time0 (pa: Path.t) =
+      let vel = Rules.move_vel in
+      { dis0  = ~-. time0 *. vel;
+        vel;
+        s_dis = float_of_int pa.s_dis;
+        d_dis = float_of_int pa.d_dis;
+        len   = pa |> Path.length;
+        x_sgn = float_of_int pa.x_sgn;
+        y_sgn = float_of_int pa.y_sgn;
+        axis  = pa.axis }
+
+    let subcell_off_of_path_anim time
+          { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis; _ }
+      =
+      let d = dis0 +. time *. vel in
+      let d' = (d -. s_dis) *. sqrt2_2 in
+      let s_off, d_off = if      d <= s_dis then d, 0.
+                         else if d <= len   then s_dis +. d', d'
+                         else                    s_dis +. d_dis, d_dis in
+      match axis with
+      | X -> (s_off *. x_sgn, d_off *. y_sgn)
+      | Y -> (d_off *. x_sgn, s_off *. y_sgn)
+
+    let subcell_pos_of_entity_look time = function
+      | Hidden -> (0., 0.)
+      | Blob { x; y; path = None; _ } ->
+         (x, y)
+      | Blob { x; y; path = Some a; _ } ->
+         let (dx, dy) = a |> subcell_off_of_path_anim time in
+         (x +. dx, y +. dy)
+
+    let blob_entity_look Player.{ color; _ } (x, y) path =
+      let face = [| 0; 3 |].(color) in
+      Blob { color; face; path;
+             x = float_of_int x;
+             y = float_of_int y }
+
+    let make_entity_data time0 base_tf (en: Entity.t) =
+      let look =
+        match en.typ with
+        | Entity.Blob_idle (pl, pos) ->
+           blob_entity_look pl pos None;
+        | Entity.Blob_moving (pl, pa) ->
+           blob_entity_look pl (pa |> Path.source) (Some (pa |> make_path_anim time0))
+      in
+      { en_id = en.id;
+        en_look = look;
+        en_tf = base_tf |> Affine.extend;
+        en_y = 0. }
+
+    let update_entity_tf time (e: entity_data) =
+      let (cx, cy) = subcell_pos_of_entity_look time e.en_look in
+      e.en_y <- cy;
+      e.en_tf |> Affine.reset;
+      e.en_tf |> translate_to_grid_center_fl (cx, cy)
 
     let render_blob_img ~assets ~cx color face tf =
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx:(0 + 64 * face) ~sy:(0 + 64 * color) ~w:64 ~h:64
 
-    let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
+    let entity_look_sprite_clip = function
+      | Hidden ->
+         (0, 0, 0, 0, 0, 0)
+      | Blob { color; face; _ } ->
+         let sx, sy = 64 * face, 64 * color in
+         (-32, -32, sx, sy, 64, 64)
 
-    let update_player_anim_tf ~time anim tf =
-      match anim with
-      | Player_idle ->
-         ()
+    let render_entity ~assets ~cx { en_look; en_tf; _ } =
+      let (x, y, sx, sy, w, h) = en_look |> entity_look_sprite_clip in
+      cx |> Ctxt.image assets.sprites
+              ~x ~y ~sx ~sy ~w ~h ~t:en_tf
 
-      | Player_moving { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis } ->
-         let d = dis0 +. time *. vel in
-         let d' = (d -. s_dis) *. sqrt2_2 in
-         let s_off, d_off = if      d <= 0.    then 0., 0.
-                            else if d <= s_dis then d, 0.
-                            else if d <= len   then s_dis +. d', d'
-                            else                    s_dis +. d_dis, d_dis in
-         let x_off, y_off = (match axis with
-                             | X -> s_off, d_off
-                             | Y -> d_off, s_off) in
-         tf |> Affine.translate
-                (x_off *. x_sgn *. cell_w_fl)
-                (y_off *. y_sgn *. cell_w_fl)
+    let make_entity_array time base_tf (ens: Entity.t list) =
+      ens
+      |> List.rev_map (make_entity_data time base_tf)
+      |> Array.of_list
 
-    let update_player_tf ~time { pl_tf; pl_pos; pl_anim; _ } =
-      pl_tf |> Affine.reset;
-      pl_tf |> translate_to_grid_center pl_pos;
-      pl_tf |> update_player_anim_tf ~time pl_anim
+    let update_map_elements time { ents; _ } =
+      ents |> Array.iter (update_entity_tf time)
 
-    let render_player ~assets ~cx { pl_tf; pl_color; pl_face; _ } =
-      pl_tf |> render_blob_img ~assets ~cx pl_color pl_face
-
-    let render_players ~cx { assets; player_0; player_1; _ } =
-      player_0 |> render_player ~assets ~cx;
-      player_1 |> render_player ~assets ~cx
+    let render_map_elements ~cx { assets; ents; _ } =
+      let compare { en_y = y1; _ } { en_y = y2; _ } =
+        Float.compare y1 y2 in
+      ents |> Array.sort compare;
+      ents |> Array.iter (render_entity ~assets ~cx)
 
     (* -- main entry point -- *)
 
@@ -336,7 +390,7 @@ module Make
         v.map_tf |> update_map_tf (cx |> Ctxt.size);
         v |> render_map_and_bg ~cx;
         v |> render_grid_elements_below ~cx;
-        v |> render_players ~cx;
+        v |> render_map_elements ~cx;
         v |> render_grid_elements_above ~cx;
         v.hud |> HUD.render cx;
         ()
@@ -344,35 +398,9 @@ module Make
 
     (*** processing game state data ***)
 
-    let update_player_data time0 (pl: Player.t) (pd: player_data) =
-      let anim =
-        if pl.anim = pd.pl_base_anim then
-          pd.pl_anim
-        else
-          match pl.anim with
-          | Player.No_anim -> Player_idle
-          | Player.Moving p when Path.is_null p -> Player_idle
-          | Player.Moving ({ s_dis; d_dis; x_sgn; y_sgn; axis; _ } as pa) ->
-             let vel = Rules.move_vel in
-             Player_moving
-               { vel;
-                 dis0  = ~-. time0 *. vel;
-                 s_dis = float_of_int s_dis;
-                 d_dis = float_of_int d_dis;
-                 len   = pa |> Path.length;
-                 x_sgn = float_of_int x_sgn;
-                 y_sgn = float_of_int y_sgn;
-                 axis  = axis }
-      in
-      { pd with
-        pl_pos = pl.pos;
-        pl_anim = anim;
-        pl_base_anim = pl.anim }
-
     let update_game time0 (game: Gameplay.t) (v: t) =
-      (* players *)
-      v.player_0 <- v.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
-      v.player_1 <- v.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
+      (* entities *)
+      v.ents <- make_entity_array time0 v.map_tf (game |> Gameplay.entities);
       (* cursor *)
       v.cursor_tf |> update_cursor_tf (game |> Gameplay.cursor);
       (* hit marks *)
@@ -401,8 +429,7 @@ module Make
       advance_phase_loop v.phase_start_time;
       (* update animations *)
       v.hud |> HUD.update time;
-      v.player_0 |> update_player_tf ~time;
-      v.player_1 |> update_player_tf ~time
+      v |> update_map_elements time
 
     let handle_evt evt v =
       let update_by f =
@@ -430,15 +457,6 @@ module Make
 
     type init = Gameplay.t
 
-    let make_player_data base_tf Player.{ color; _ } =
-      let face = [| 0; 3 |].(color) in
-      { pl_tf = Affine.extend base_tf;
-        pl_color = color;
-        pl_face = face;
-        pl_pos = (0, 0);
-        pl_anim = Player_idle;
-        pl_base_anim = Player.No_anim }
-
     let make (assets, hud_assets) game =
       let map_tf = Affine.make () in
       let v0 =
@@ -446,10 +464,9 @@ module Make
           game;
           hud = HUD.make hud_assets game;
           phase_start_time = 0.;
-          (* players, map *)
+          (* map, entities *)
           map_tf;
-          player_0 = game |> Gameplay.player_0 |> make_player_data map_tf;
-          player_1 = game |> Gameplay.player_1 |> make_player_data map_tf;
+          ents = [||];
           (* cursor, path *)
           cursor_tf = map_tf |> Affine.extend;
           path_data = [||];
