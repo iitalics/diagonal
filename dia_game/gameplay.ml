@@ -9,9 +9,13 @@ type t =
     phase: phase }
 
 and phase =
-  | Turn of { cu: Pos.t }
+  | Turn of { idle: idle; cu: Pos.t }
   | Moving of { path0: Path.t; path1: Path.t }
-  | Damage of { hits: hits }
+  | Damage of { idle: idle; hits: hits }
+
+and idle =
+  { pos0: Pos.t;
+    pos1: Pos.t }
 
 and hits =
   { hits_player_0: hit list;
@@ -26,18 +30,6 @@ and hit_type =
   | Attk
 
 type point_type = Path.point_type
-
-(* init *)
-
-let player_0_spawn = (3, 3)
-let player_1_spawn = (6, 7)
-
-let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
-  { pl0 = Player.make ~color:0 ~pos:player_0_spawn;
-    pl1 = Player.make ~color:1 ~pos:player_1_spawn;
-    pc0; pc1;
-    turn_num = 1;
-    phase = Turn { cu = player_0_spawn } }
 
 (* attacks and damage *)
 
@@ -75,7 +67,7 @@ let collision_hits path0 path1 =
 
 let hits g =
   match g.phase with
-  | Damage { hits } -> hits
+  | Damage { hits; _ } -> hits
   | Turn _ | Moving _ -> no_hits
 
 let damage_of_hit_type = function
@@ -90,9 +82,7 @@ let damage_of_hits hs =
 (* phases, turns *)
 
 let turn g = g.turn_num
-
-let inc_turn g =
-  { g with turn_num = g.turn_num + 1 }
+let inc_turn g = { g with turn_num = g.turn_num + 1 }
 
 let phase_duration g = match g.phase with
   | Turn _ -> Rules.turn_duration
@@ -101,38 +91,35 @@ let phase_duration g = match g.phase with
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)
 
-let to_moving_phase g =
-  let path0 = g.pl0 |> Player.path in
-  let path1 = g.pl1 |> Player.path in
-  { g with phase = Moving { path0; path1 } }
-
-let to_turn_phase g =
-  let cu = g.pl0.pos in
-  { g with phase = Turn { cu } }
-  |> inc_turn
-
-let to_damage_phase ~hits g =
-  { g with phase = Damage { hits } }
+let idle_turn idle =
+  Turn { idle; cu = idle.pos0 }
 
 let end_phase g =
   match g.phase with
-  | Turn { cu = cursor } ->
-     let pl0, pc0 = g.pc0 |> Player_controller.commit_turn g.pl0 ~cursor in
-     let pl1, pc1 = g.pc1 |> Player_controller.commit_turn g.pl1 in
-     to_moving_phase
-       { g with pl0; pl1; pc0; pc1 }
+  | Turn { idle = { pos0; pos1 }; cu } ->
+     let pos0', pc0 = g.pc0 |> Player_controller.pick_move
+                                 { pos = pos0; opp_pos = pos1; cursor = Some cu } in
+     let pos1', pc1 = g.pc1 |> Player_controller.pick_move
+                                 { pos = pos1; opp_pos = pos0; cursor = None } in
+     { g with
+       pc0; pc1;
+       phase = Moving { path0 = Path.from_points ~src:pos0 ~tgt:pos0';
+                        path1 = Path.from_points ~src:pos1 ~tgt:pos1' } }
 
   | Moving { path0; path1 } ->
      let hits = collision_hits path0 path1 in
      let (dmg0, dmg1) = hits |> damage_of_hits in
-     let pl0 = g.pl0 |> Player.stop_moving |> Player.take_damage dmg1 in
-     let pl1 = g.pl1 |> Player.stop_moving |> Player.take_damage dmg0 in
-     to_damage_phase
-       { g with pl0; pl1 }
-       ~hits
+     let pl0 = g.pl0 |> Player.take_damage dmg1 in
+     let pl1 = g.pl1 |> Player.take_damage dmg0 in
+     { g with
+       pl0; pl1;
+       phase = Damage { hits;
+                        idle = { pos0 = path0 |> Path.target;
+                                 pos1 = path1 |> Path.target } } }
 
-  | Damage _ ->
-     to_turn_phase g
+  | Damage { idle; _ } ->
+     { g with phase = idle_turn idle }
+     |> inc_turn
 
 (* cursor, paths *)
 
@@ -141,41 +128,38 @@ type path_type =
   | Player_path
 
 let paths t =
-  let player_anim_path an k = match an with
-    | Player.No_anim   -> k
-    | Player.Moving pa -> (pa, Player_path) :: k
-  in
-  let phase_path ph k = match ph with
-    | Turn { cu } -> (Path.from_points ~src:t.pl0.pos ~tgt:cu, Select_path) :: k
-    | Moving _    -> k
-    | Damage _    -> k
-  in
-  phase_path t.phase
-    (player_anim_path t.pl0.anim
-       (player_anim_path t.pl1.anim []))
+  match t.phase with
+  | Turn { idle = { pos0; _ }; cu } ->
+     [ Path.from_points ~src:pos0 ~tgt:cu, Select_path ]
+  | Moving { path0; path1 } ->
+     [ (path0, Player_path); (path1, Player_path) ]
+  | Damage _ ->
+     []
 
 let grid_clamp x =
   x |> max 0 |> min (Rules.grid_cols - 1)
 
-let[@ocaml.inline] move_cursor_by dx dy t =
+let modify_cursor f t =
   match t.phase with
-  | Turn { cu = (cx, cy) } ->
-     let cu = (grid_clamp (cx + dx),
-               grid_clamp (cy + dy)) in
-     { t with phase = Turn { cu } }
+  | Turn { idle; cu } ->
+     { t with phase = Turn { idle; cu = f idle cu } }
   | Moving _ | Damage _ ->
      t
 
-let[@ocaml.inline] reset_cursor t =
-  match t.phase with
-  | Turn { cu = _ } ->
-     { t with phase = Turn { cu = t.pl0.pos } }
-  | Moving _ | Damage _ ->
-     t
+let move_cursor_by dx dy t =
+  t |> modify_cursor
+         (fun _ (x, y) ->
+           (grid_clamp (x + dx),
+            grid_clamp (y + dy)))
+
+let reset_cursor t =
+  t |> modify_cursor
+         (fun { pos0; _ } _ ->
+           pos0)
 
 let cursor t =
   match t.phase with
-  | Turn { cu } -> Some(cu)
+  | Turn { cu; _ } -> Some(cu)
   | Moving _ | Damage _ -> None
 
 (* players, entities *)
@@ -183,17 +167,28 @@ let cursor t =
 let player_0 g = g.pl0
 let player_1 g = g.pl1
 
-let entity_of_player ~id (pl: Player.t) =
-  let typ =
-    match pl.anim with
-    | No_anim   -> Entity.Blob_idle (pl, pl.pos)
-    | Moving pa -> Entity.Blob_moving (pl, pa)
-  in
-  Entity.{ id; typ }
+let entities t =
+  match t.phase with
+  | Turn { idle; _ } | Damage { idle; _ } ->
+     let { pos0; pos1 } = idle in
+     [ Entity.{ id = 0; typ = Blob_idle (t.pl0, pos0) };
+       Entity.{ id = 1; typ = Blob_idle (t.pl1, pos1) } ]
+  | Moving { path0; path1 } ->
+     [ Entity.{ id = 0; typ = Blob_moving (t.pl0, path0) };
+       Entity.{ id = 1; typ = Blob_moving (t.pl1, path1) } ]
 
-let entities { pl0; pl1; _ } =
-  [ pl0 |> entity_of_player ~id:0;
-    pl1 |> entity_of_player ~id:1 ]
+(* init *)
+
+let spawn =
+  { pos0 = (3, 3);
+    pos1 = (6, 7) }
+
+let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
+  { pl0 = Player.make ~color:0;
+    pl1 = Player.make ~color:1;
+    pc0; pc1;
+    turn_num = 1;
+    phase = idle_turn spawn }
 
 (* events *)
 

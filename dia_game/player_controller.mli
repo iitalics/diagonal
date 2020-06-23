@@ -1,7 +1,12 @@
+type input =
+  { pos: Pos.t;
+    opp_pos: Pos.t;
+    cursor: Pos.t option }
+
 module type S =
   sig
     type t
-    val commit_turn: ?cursor:Pos.t -> Player.t -> t -> (Player.t * t)
+    val pick_move: input -> t -> Pos.t * t
   end
 
 include S

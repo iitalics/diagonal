@@ -16,3 +16,6 @@ end
 module Typ = struct
   type nonrec t = typ
 end
+
+let compare_id { id = i; _ } { id = j; _ } =
+  Id.compare i j
