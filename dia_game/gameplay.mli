@@ -23,6 +23,7 @@ val make: player_ctrl_0:Player_controller.t
 val turn: t -> int
 val player_0: t -> Player.t
 val player_1: t -> Player.t
+val entities: t -> Entity.t list
 val cursor: t -> Pos.t option
 val paths: t -> (Path.t * path_type) list
 val hits: t -> hits

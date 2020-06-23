@@ -39,11 +39,6 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
     turn_num = 1;
     phase = Turn { cu = player_0_spawn } }
 
-(* players *)
-
-let player_0 g = g.pl0
-let player_1 g = g.pl1
-
 (* attacks and damage *)
 
 let no_hits =
@@ -182,6 +177,23 @@ let cursor t =
   match t.phase with
   | Turn { cu } -> Some(cu)
   | Moving _ | Damage _ -> None
+
+(* players, entities *)
+
+let player_0 g = g.pl0
+let player_1 g = g.pl1
+
+let entity_of_player ~id (pl: Player.t) =
+  let typ =
+    match pl.anim with
+    | No_anim   -> Entity.Blob_idle (pl, pl.pos)
+    | Moving pa -> Entity.Blob_moving (pl, pa)
+  in
+  Entity.{ id; typ }
+
+let entities { pl0; pl1; _ } =
+  [ pl0 |> entity_of_player ~id:0;
+    pl1 |> entity_of_player ~id:1 ]
 
 (* events *)
 
