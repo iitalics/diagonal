@@ -137,7 +137,7 @@ module Make
     let make_player_data base_tf i (pl: Player.t) =
       (* basic data *)
       let name = [| "Player One"; "Player Two" |].(i) in
-      let item = [| `S; `H |].(i) in
+      let item = [| Item_type.Dagger; Item_type.Staff |].(i) in
       let hp = pl.hp in
       (* transformation matrices *)
       let name_tf = base_tf |> Affine.extend in
@@ -171,11 +171,17 @@ module Make
       ignore time0;
       pl_data.pl_hp <- pl.hp
 
-    let render_icon_img ~assets cx ty tf =
-      let row = match ty with `S -> 0 | `F -> 1 | `P -> 2 | `H -> 3 in
+    let render_item_icon_img ~assets cx (ty: Item_type.t) tf =
+      let sx, sy = match ty with
+        | Shovel -> 352, 0
+        | Dagger -> 416, 0
+        | Sword  -> 480, 0
+        | Rapier -> 544, 0
+        | Staff  -> 608, 0
+      in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:384 ~sy:(row * 64) ~w:64 ~h:64
+              ~sx ~sy ~w:64 ~h:64
 
     let render_player ~assets cx
           { pl_idx; pl_name; pl_hp; pl_item;
@@ -202,7 +208,7 @@ module Make
                ~ys:[| 0; 0; h; h; 0 |]);
 
       (* items *)
-      (pl_item_icon_tf |> render_icon_img ~assets cx pl_item;
+      (pl_item_icon_tf |> render_item_icon_img ~assets cx pl_item;
        let font = assets.act_item_font in
        let (mes_w, _) = font |> Font.measure hud_item_act_text in
        cx |> Ctxt.text hud_item_act_text

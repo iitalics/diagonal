@@ -1,1 +1,6 @@
-type t = [ `S | `F | `P | `H ]
+type t =
+  | Shovel
+  | Dagger
+  | Sword
+  | Rapier
+  | Staff
