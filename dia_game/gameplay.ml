@@ -33,8 +33,8 @@ let player_0_spawn = (3, 3)
 let player_1_spawn = (6, 7)
 
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
-  { pl0 = Player.make player_0_spawn;
-    pl1 = Player.make player_1_spawn;
+  { pl0 = Player.make ~color:0 ~pos:player_0_spawn;
+    pl1 = Player.make ~color:1 ~pos:player_1_spawn;
     pc0; pc1;
     turn_num = 1;
     phase = Turn { cu = player_0_spawn } }

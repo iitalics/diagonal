@@ -5,20 +5,22 @@ type anim =
 type t =
   { pos: Pos.t;
     hp: int;
+    color: int;
     anim: anim }
 
-let make pos =
+let make ~pos ~color =
   { pos;
+    color;
     hp = Rules.max_hp;
     anim = No_anim }
 
 let stop_moving pl =
   match pl.anim with
   | No_anim   -> pl
-  | Moving pa -> make (pa |> Path.target)
+  | Moving pa -> { pl with anim = No_anim; pos = pa |> Path.target }
 
 let move_to pos' pl =
-  let pl = stop_moving pl in
+  let pl = pl |> stop_moving in
   { pl with
     anim = Moving (Path.from_points
                      ~src:pl.pos

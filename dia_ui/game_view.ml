@@ -87,7 +87,6 @@ module Make
       { (* user info *)
         pl_color: int;
         pl_face: int;
-        pl_name: string;
         (* map state *)
         pl_tf: Affine.t;
         pl_pos: Pos.t;
@@ -431,11 +430,11 @@ module Make
 
     type init = Gameplay.t
 
-    let make_player_data base_tf color face name =
+    let make_player_data base_tf Player.{ color; _ } =
+      let face = [| 0; 3 |].(color) in
       { pl_tf = Affine.extend base_tf;
         pl_color = color;
         pl_face = face;
-        pl_name = name;
         pl_pos = (0, 0);
         pl_anim = Player_idle;
         pl_base_anim = Player.No_anim }
@@ -449,8 +448,8 @@ module Make
           phase_start_time = 0.;
           (* players, map *)
           map_tf;
-          player_0 = make_player_data map_tf 0 0 "Player One";
-          player_1 = make_player_data map_tf 3 2 "Player Two";
+          player_0 = game |> Gameplay.player_0 |> make_player_data map_tf;
+          player_1 = game |> Gameplay.player_1 |> make_player_data map_tf;
           (* cursor, path *)
           cursor_tf = map_tf |> Affine.extend;
           path_data = [||];
