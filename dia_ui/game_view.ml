@@ -186,7 +186,7 @@ module Make
 
     let path_rad = 16
 
-    let bent_line_coords s_len d_len x_sgn y_sgn axis =
+    let bent_line_vertices s_len d_len x_sgn y_sgn axis =
       let r, r', r'' =
         path_rad,
         path_rad * 707 / 1000, (* ~ r * sin(45 deg) *)
@@ -216,7 +216,7 @@ module Make
       let Path.{ pos; axis; s_dis; d_dis; x_sgn; y_sgn; _ } = path in
       let tf = base_tf |> Affine.extend in
       tf |> translate_to_grid_center pos;
-      let xs, ys = bent_line_coords
+      let xs, ys = bent_line_vertices
                      (s_dis * cell_w)
                      (d_dis * cell_w)
                      x_sgn y_sgn axis in

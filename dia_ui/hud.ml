@@ -62,7 +62,7 @@ module Make
 
     (* HUD origin *)
 
-    let base_y = 20
+    let base_y = 32
     let padding = 12
     let outl_c = Color.of_rgb_s "#fff"
 
@@ -74,9 +74,7 @@ module Make
 
     let pl_bbox_w = 420
     let pl_bbox_h = 104
-    let pl_bbox_xs, pl_bbox_ys =
-      [| 0; pl_bbox_w; pl_bbox_w; 0 |],
-      [| 0; 0; pl_bbox_h; pl_bbox_h |]
+    let pl_bbox_xs, pl_bbox_ys = aabb_fill_vertices (0, 0, pl_bbox_w, pl_bbox_h)
 
     let pl_hpbar_x = 48
     let pl_hpbar_y = 14
@@ -92,14 +90,16 @@ module Make
 
     type player_data =
       { pl_tf: Affine.t;
+        (* hp text *)
         mutable pl_hp_text: string;
         mutable pl_hp_text_x: int;
         mutable pl_hp_text_y: int;
+        (* hp bar *)
         pl_hpbar_ol: int array * int array;
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array }
 
-    let hpbar_coords amt =
+    let[@ocaml.inline] hpbar_coords amt =
       pl_hpbar_x, pl_hpbar_y,
       int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
       pl_hpbar_y + pl_hpbar_h
@@ -110,15 +110,11 @@ module Make
               (padding / 2
                + (idx - 1) * (pl_bbox_w + padding))
               0;
-      let hp_x0, hp_y0, hp_x1, hp_y1 = hpbar_coords 1. in
       { pl_tf = tf;
         pl_hp_text = ""; pl_hp_text_x = 0; pl_hp_text_y = 0;
-        pl_hpbar_ol = [| hp_x0; hp_x1; hp_x1; hp_x0; hp_x0 |],
-                      [| hp_y0; hp_y0; hp_y1; hp_y1; hp_y0 |];
-        pl_hpbar_bg = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
-                      [| hp_y0; hp_y0; hp_y1; hp_y1 |];
-        pl_hpbar_fi = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
-                      [| hp_y0; hp_y0; hp_y1; hp_y1 |] }
+        pl_hpbar_ol = hpbar_coords 1. |> aabb_strip_vertices;
+        pl_hpbar_bg = hpbar_coords 1. |> aabb_fill_vertices;
+        pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)
@@ -161,9 +157,7 @@ module Make
 
     let tn_bbox_w = 176
     let tn_bbox_h = 52
-    let tn_bbox_xs, tn_bbox_ys =
-      [| 0; tn_bbox_w; tn_bbox_w; 0 |],
-      [| 0; 0; tn_bbox_h; tn_bbox_h |]
+    let tn_bbox_xs, tn_bbox_ys = aabb_fill_vertices (0, 0, tn_bbox_w, tn_bbox_h)
 
     let tn_amt_x = 8
     let tn_amt_y = 32
@@ -197,12 +191,9 @@ module Make
       tf |> Affine.translate_i
               (-tn_bbox_w / 2)
               (pl_bbox_h + padding);
-      let a_x0, a_y0, a_x1, a_y1 = turn_amt_coords 1. in
       { tn_tf = tf;
-        tn_bar_ol = [| a_x0; a_x1; a_x1; a_x0; a_x0 |],
-                    [| a_y0; a_y0; a_y1; a_y1; a_y0 |];
-        tn_bar_fi = [| a_x0; a_x1; a_x1; a_x0 |],
-                    [| a_y0; a_y0; a_y1; a_y1 |];
+        tn_bar_ol = turn_amt_coords 1. |> aabb_strip_vertices;
+        tn_bar_fi = turn_amt_coords 1. |> aabb_fill_vertices;
         tn_amt0 = 1.0; tn_amt_vel = 0.; tn_num = 0; tn_dur = 1.;
         tn_text = "";
         tn_text_x = 0 }
