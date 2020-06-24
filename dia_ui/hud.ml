@@ -170,17 +170,11 @@ module Make
       ignore time0;
       pl_data.pl_hp <- pl.hp
 
-    let render_item_icon_img ~assets cx (ty: Item_type.t) tf =
-      let sx, sy = match ty with
-        | Shovel -> 352, 0
-        | Dagger -> 416, 0
-        | Sword  -> 480, 0
-        | Rapier -> 544, 0
-        | Staff  -> 608, 0
-      in
+    let render_item_icon_img ~assets cx (typ: Item_type.t) tf =
+      let sx = 352 + 64 * Item_type.to_int typ in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
-              ~sx ~sy ~w:64 ~h:64
+              ~sx ~sy:0 ~w:64 ~h:64
 
     let render_player ~assets cx
           { pl_idx; pl_name; pl_hp; pl_item;
