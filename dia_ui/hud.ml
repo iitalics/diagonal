@@ -1,5 +1,6 @@
 module Gameplay = Dia_game.Gameplay
 module Item_type = Dia_game.Item_type
+module Spell_type = Dia_game.Spell_type
 module Player = Dia_game.Player
 module Rules = Dia_game.Rules
 open Util
@@ -109,7 +110,14 @@ module Make
       aabb_strip_vertices (pl_weap_x, pl_weap_y,
                            pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
 
-    let pl_stats_x = 64
+    let pl_spell_x = 64
+    let pl_spell_y = 52
+    let pl_spell_w = 40
+    let pl_spell_outl_xs, pl_spell_outl_ys =
+      aabb_strip_vertices (pl_spell_x, pl_spell_y,
+                           pl_spell_x + pl_spell_w, pl_spell_y + pl_spell_w)
+
+    let pl_stats_x = 112
     let pl_stats_y1 = 54
     let pl_stats_y2 = 78
     let pl_stats_text_c = Color.of_rgb_s "#fff"
@@ -131,8 +139,10 @@ module Make
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array;
         (* item *)
-        pl_item_tf: Affine.t;
-        mutable pl_item: Item_type.t;
+        pl_weap_tf: Affine.t;
+        pl_spell_tf: Affine.t;
+        mutable pl_weap: Item_type.t;
+        pl_spell: Spell_type.t option;
         (* stats *)
         mutable pl_stats_text: string * string }
 
@@ -142,23 +152,34 @@ module Make
       pl_hpbar_y + pl_hpbar_h
 
     let make_player_data base_tf idx (pl: Player.t) =
+      (* base tf *)
       let tf = base_tf |> Affine.extend in
       tf |> Affine.translate_i
               (padding / 2
                + (idx - 1) * (pl_bbox_w + padding))
               0;
-      let item_tf = tf |> Affine.extend in
-      item_tf |> Affine.translate_i
-                   (pl_weap_x + pl_weap_w / 2)
-                   (pl_weap_y + pl_weap_w / 2);
-      (let s = float_of_int pl_weap_w /. 64. in
-       item_tf |> Affine.scale s s);
+      (* icon tf *)
       let icon_tf = tf |> Affine.extend in
       icon_tf |> Affine.translate_i
                    (pl_icon_x + pl_icon_w / 2)
                    (pl_icon_y + pl_icon_w / 2);
       (let s = float_of_int pl_icon_w /. 64. in
        icon_tf |> Affine.scale s s);
+      (* weapon tf *)
+      let weap_tf = tf |> Affine.extend in
+      weap_tf |> Affine.translate_i
+                   (pl_weap_x + pl_weap_w / 2)
+                   (pl_weap_y + pl_weap_w / 2);
+      (let s = float_of_int pl_weap_w /. 64. in
+       weap_tf |> Affine.scale s s);
+      (* spell tf *)
+      let spell_tf = tf |> Affine.extend in
+      spell_tf |> Affine.translate_i
+                    (pl_spell_x + pl_spell_w / 2)
+                    (pl_spell_y + pl_spell_w / 2);
+      (let s = float_of_int pl_spell_w /. 64. in
+       spell_tf |> Affine.scale s s);
+      (* *)
       { pl_tf = tf;
         pl_icon_tf = icon_tf;
         pl_color = pl.color;
@@ -166,8 +187,13 @@ module Make
         pl_hpbar_ol = hpbar_coords 1. |> aabb_strip_vertices;
         pl_hpbar_bg = hpbar_coords 1. |> aabb_fill_vertices;
         pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices;
-        pl_item_tf = item_tf;
-        pl_item = Item_type.Dagger;
+        pl_weap_tf = weap_tf;
+        pl_spell_tf = spell_tf;
+        pl_weap = pl.item;
+        pl_spell = (match pl.color with
+                    | 0 -> Some Fire
+                    | 1 -> Some Ice
+                    | _ -> None);
         pl_stats_text = ("", "") }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
@@ -185,22 +211,29 @@ module Make
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
       (* item *)
-      player.pl_item <- pl.item;
+      player.pl_weap <- pl.item;
       (* stats *)
       player.pl_stats_text <- pl_stats_text
                                 ~atk:(pl.item |> Item_type.atk)
                                 ~def:0
 
-    let render_player_icon ~assets ~cx color tf =
+    let render_player_icon ~assets ~cx tf color =
       let sx = 0 in
       let sy = color * 64 in
       cx |> Ctxt.image assets.sprites
               ~t:tf ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
 
-    let render_item_icon ~assets ~cx typ tf =
+    let render_weap_icon ~assets ~cx tf typ =
       let sx = 352 + Item_type.to_int typ * 64 in
       let sy = 0 in
+      cx |> Ctxt.image assets.sprites
+              ~t:tf ~x:(-32) ~y:(-32)
+              ~sx ~sy ~w:64 ~h:64
+
+    let render_spell_icon ~assets ~cx tf typ =
+      let sx = 416 + Spell_type.to_int typ * 64 in
+      let sy = 64 in
       cx |> Ctxt.image assets.sprites
               ~t:tf ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
@@ -212,7 +245,7 @@ module Make
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
-            pl_item_tf; pl_item;
+            pl_weap_tf; pl_spell_tf; pl_weap; pl_spell;
             pl_stats_text = (stats_text1, stats_text2) }
       =
       (* bounding box *)
@@ -220,8 +253,7 @@ module Make
               ~t:pl_tf ~c:bg_c
               ~xs:pl_bbox_xs ~ys:pl_bbox_ys;
       (* icon *)
-      render_player_icon ~assets ~cx
-        pl_color pl_icon_tf;
+      pl_color |> render_player_icon ~assets ~cx pl_icon_tf;
       (* hp bar *)
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:pl_hpbar_bg_c
@@ -236,12 +268,15 @@ module Make
       cx |> Ctxt.text pl_hp_text
               ~t:pl_tf ~c:pl_hp_text_c ~font:assets.hp_font
               ~x:pl_hp_text_x ~y:pl_hp_text_y;
-      (* item *)
+      (* item & spell *)
       cx |> Ctxt.vertices `Strip
               ~t:pl_tf ~c:outl_c
               ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
-      render_item_icon ~assets ~cx
-        pl_item pl_item_tf;
+      cx |> Ctxt.vertices `Strip
+              ~t:pl_tf ~c:outl_c
+              ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
+      pl_weap |> render_weap_icon ~assets ~cx pl_weap_tf;
+      pl_spell |> Option.iter (render_spell_icon ~assets ~cx pl_spell_tf);
       (* stats *)
       cx |> Ctxt.text stats_text1
               ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
