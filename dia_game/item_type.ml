@@ -11,3 +11,10 @@ let to_int = function
   | Sword  -> 2
   | Rapier -> 3
   | Staff  -> 4
+
+let name = function
+  | Shovel -> "shovel"
+  | Dagger -> "dagger"
+  | Sword  -> "sword"
+  | Rapier -> "rapier"
+  | Staff  -> "staff"

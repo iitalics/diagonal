@@ -108,7 +108,6 @@ module Make
     let hud_item_x  = 56 (* 32 *)
     let hud_item_y  = 84
     let hud_item_scale = 0.8
-    let hud_item_act_text = "active item"
     let hud_item_act_text_c = Color.of_rgb_s "#ff0"
     let hud_item_act_text_dy = 24
     let hud_turn_x = hud_w / 2
@@ -202,8 +201,9 @@ module Make
       (* items *)
       (pl_item_icon_tf |> render_item_icon_img ~assets ~cx pl_item;
        let font = assets.act_item_font in
-       let (mes_w, _) = font |> Font.measure hud_item_act_text in
-       cx |> Ctxt.text hud_item_act_text
+       let text = pl_item |> Item_type.name in
+       let (mes_w, _) = font |> Font.measure text in
+       cx |> Ctxt.text text
                ~font ~c:hud_item_act_text_c ~t:pl_items_tf
                ~x:(-mes_w / 2)
                ~y:hud_item_act_text_dy)
