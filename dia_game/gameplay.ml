@@ -5,6 +5,7 @@ type t =
     pl1: Player.t;
     pc0: Player_controller.t;
     pc1: Player_controller.t;
+    map_items: item list;
     turn_num: int;
     phase: phase }
 
@@ -28,6 +29,11 @@ and hit =
 and hit_type =
   | Crit
   | Attk
+
+and item =
+  { it_id: Entity.id;
+    it_pos: Pos.t;
+    it_typ : Item_type.t }
 
 type point_type = Path.point_type
 
@@ -168,12 +174,12 @@ let cursor t =
   | Turn { cu; _ } -> Some(cu)
   | Moving _ | Damage _ -> None
 
-(* players, entities *)
+(* players, items *)
 
 let player_0 g = g.pl0
 let player_1 g = g.pl1
 
-let player_entities pl0 pl1 = function
+let player_entities_of_phase pl0 pl1 = function
   | Turn { idle; _ } | Damage { idle; _ } ->
      let { pos0; pos1 } = idle in
      [ Entity.{ id = 0; typ = Blob_idle (pl0, pos0) };
@@ -182,10 +188,12 @@ let player_entities pl0 pl1 = function
      [ Entity.{ id = 0; typ = Blob_moving (pl0, path0) };
        Entity.{ id = 1; typ = Blob_moving (pl1, path1) } ]
 
+let entity_of_item { it_id; it_pos; it_typ } =
+  Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
+
 let entities t =
-  player_entities t.pl0 t.pl1 t.phase @
-    [ Entity.{ id = 2; typ = Item (Item_type.Dagger, (2, 1)) };
-      Entity.{ id = 3; typ = Item (Item_type.Rapier, (2, 3)) } ]
+  (t.phase |> player_entities_of_phase t.pl0 t.pl1)
+  @ (t.map_items |> List.rev_map entity_of_item)
 
 (* init *)
 
@@ -193,12 +201,17 @@ let spawn =
   { pos0 = (3, 3);
     pos1 = (6, 7) }
 
+let initial_items =
+  [ { it_id = 2; it_pos = (3, 7); it_typ = Staff };
+    { it_id = 3; it_pos = (4, 0); it_typ = Rapier } ]
+
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   { pl0 = Player.make ~color:0;
     pl1 = Player.make ~color:1;
     pc0; pc1;
     turn_num = 1;
-    phase = idle_turn spawn }
+    phase = idle_turn spawn;
+    map_items = initial_items }
 
 (* events *)
 
