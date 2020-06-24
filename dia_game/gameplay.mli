@@ -20,7 +20,8 @@ val make: player_ctrl_0:Player_controller.t
           -> player_ctrl_1:Player_controller.t
           -> t
 
-val turn: t -> int
+val turn_num: t -> int
+val turn_duration: t -> float option
 val player_0: t -> Player.t
 val player_1: t -> Player.t
 val entities: t -> Entity.t list

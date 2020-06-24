@@ -81,9 +81,6 @@ let damage_of_hits hs =
 
 (* phases, turns *)
 
-let turn g = g.turn_num
-let inc_turn g = { g with turn_num = g.turn_num + 1 }
-
 let phase_duration g = match g.phase with
   | Turn _ -> Rules.turn_duration
   | Damage _ -> 3.
@@ -118,8 +115,17 @@ let end_phase g =
                                  pos1 = path1 |> Path.target } } }
 
   | Damage { idle; _ } ->
-     { g with phase = idle_turn idle }
-     |> inc_turn
+     { g with
+       phase = idle_turn idle;
+       turn_num = g.turn_num + 1 }
+
+let turn_num { turn_num; _ } =
+  turn_num
+
+let turn_duration { phase; _ } =
+  match phase with
+  | Turn _ -> Some Rules.turn_duration
+  | Moving _ | Damage _ -> None
 
 (* cursor, paths *)
 

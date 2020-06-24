@@ -223,18 +223,17 @@ module Make
               hud_turn_y;
       let x0, y0, x1, y1 = turn_bar_coords 1. in
       { tn_tf = tf;
-        tn_num = 0; tn_dur = 0.;
+        tn_num = 0; tn_dur = 1.;
         tn_amt0 = 0.; tn_amt_v = 0.;
         tn_text = "";
         tn_bar_o = [| x0; x1; x1; x0; x0 |], [| y0; y0; y1; y1; y0 |];
         tn_bar_f = [| x0; x1; x1; x0 |],     [| y0; y0; y1; y1 |] }
 
-    let start_turn time0 num tn =
+    let start_turn time0 ~dur tn =
       (* amt(t0)      = 1
          amt(t0 + dt) = 0 *)
-      tn.tn_num <- num;
-      tn.tn_dur <- Rules.turn_duration;
-      tn.tn_amt_v <- -1. /. Rules.turn_duration;
+      tn.tn_dur <- dur;
+      tn.tn_amt_v <- -1. /. dur;
       tn.tn_amt0 <- 1. -. time0 *. tn.tn_amt_v
 
     let update_turn time
@@ -283,9 +282,10 @@ module Make
     let update_game time0 game hud =
       begin
         (* turn *)
-        let tn_num = game |> Gameplay.turn in
-        if tn_num <> hud.turn_data.tn_num then
-          hud.turn_data |> start_turn time0 tn_num;
+        hud.turn_data.tn_num <- game |> Gameplay.turn_num;
+        game |> Gameplay.turn_duration |>
+          Option.iter (fun dur ->
+              hud.turn_data |> start_turn time0 ~dur);
         (* players *)
         hud.player_0 |> update_player_data time0 (game |> Gameplay.player_0);
         hud.player_1 |> update_player_data time0 (game |> Gameplay.player_1);
