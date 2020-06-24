@@ -93,9 +93,14 @@ let player_1 g = g.pl1
 let player_collect_item items pos pl =
   match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pos it_pos) with
   | Some { it_typ; _ } ->
-     pl |> Player.gain_item it_typ
+     pl |> Player.pick_up it_typ
   | None ->
      pl
+
+let pick_up_items pick_up items =
+  items |> List.filter
+             (fun { it_pos; _ } ->
+               not (pick_up |> List.exists (Pos.equal it_pos) ))
 
 let player_entities_of_phase pl0 pl1 = function
   | Turn { idle; _ } | Damage { idle; _ } ->
@@ -117,7 +122,7 @@ let entities t =
 
 let phase_duration g = match g.phase with
   | Turn _ -> Rules.turn_duration
-  | Damage _ -> 3.
+  | Damage _ -> 1.
   | Moving { path0; path1 } ->
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)
@@ -145,8 +150,9 @@ let end_phase g =
                  player_collect_item g.map_items pos0 in
      let pl1 = g.pl1 |> Player.take_damage dmg0 |>
                  player_collect_item g.map_items pos1 in
+     let map_items = g.map_items |> pick_up_items [ pos0; pos1 ] in
      { g with
-       pl0; pl1;
+       pl0; pl1; map_items;
        phase = Damage { hits; idle = { pos0; pos1 } } }
 
   | Damage { idle; _ } ->
