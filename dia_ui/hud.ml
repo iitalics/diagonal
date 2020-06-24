@@ -134,10 +134,9 @@ module Make
 
     (* player info *)
 
-    let make_player_data base_tf Player.{ hp; color = i; _ } =
+    let make_player_data base_tf Player.{ hp; item; color = i; _ } =
       (* basic data *)
       let name = [| "Player One"; "Player Two" |].(i) in
-      let item = [| Item_type.Dagger; Item_type.Staff |].(i) in
       (* transformation matrices *)
       let name_tf = base_tf |> Affine.extend in
       let hpbar_tf = base_tf |> Affine.extend in
