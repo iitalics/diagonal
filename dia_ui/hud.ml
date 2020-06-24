@@ -99,7 +99,12 @@ module Make
       { tn_tf: Affine.t;
         tn_bar_ol: int array * int array;
         tn_bar_fi: int array * int array;
-        tn_text: string }
+        mutable tn_amt0: float;          (* amt(t) = amt0 + amt_vel * t *)
+        mutable tn_amt_vel: float;
+        mutable tn_num: int;
+        mutable tn_dur: float;
+        mutable tn_text: string;
+        mutable tn_text_x: int }
 
     let turn_amt_coords amt =
       let x0, y0 = tn_amt_x, tn_amt_y in
@@ -118,12 +123,42 @@ module Make
                     [| a_y0; a_y0; a_y1; a_y1; a_y0 |];
         tn_bar_fi = [| a_x0; a_x1; a_x1; a_x0 |],
                     [| a_y0; a_y0; a_y1; a_y1 |];
-        tn_text = tn_text 5 1.2 }
+        tn_amt0 = 1.0; tn_amt_vel = 0.; tn_num = 0; tn_dur = 1.;
+        tn_text = "";
+        tn_text_x = 0 }
+
+    let update_turn_data time0 ~num ~dur turn =
+      let (amt0, vel, dur) =
+        match dur with
+        | None -> (0., 0., 1.)
+        | Some(dur) ->
+           (* amt0 + vel * t0         = 1.0
+              amt0 + vel * (t0 + dur) = 0.0 *)
+           let vel = -1. /. dur in
+           let amt0 = 1.0 -. vel *. time0 in
+           (amt0, vel, dur)
+      in
+      turn.tn_num <- num;
+      turn.tn_amt0 <- amt0;
+      turn.tn_amt_vel <- vel;
+      turn.tn_dur <- dur
+
+    let animate_turn_data ~assets time turn =
+      let amt = max 0. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
+      (* update text *)
+      turn.tn_text <- tn_text turn.tn_num (turn.tn_dur *. amt);
+      turn.tn_text_x <- (let (mes_w, _) = assets.turn_font |> Font.measure turn.tn_text in
+                         tn_text_x0 - mes_w / 2);
+      (* update progress bar *)
+      let _, _, amt_x1, _ = turn_amt_coords amt in
+      let (fill_xs, _) = turn.tn_bar_fi in
+      fill_xs.(1) <- amt_x1;
+      fill_xs.(2) <- amt_x1
 
     let render_turn_data ~assets ~cx
-          { tn_tf; tn_text;
+          { tn_tf; tn_text; tn_text_x;
             tn_bar_ol = (outl_xs, outl_ys);
-            tn_bar_fi = (fill_xs, fill_ys) }
+            tn_bar_fi = (fill_xs, fill_ys); _ }
       =
       cx |> Ctxt.vertices `Fill
               ~t:tn_tf ~c:bg_c
@@ -134,12 +169,10 @@ module Make
       cx |> Ctxt.vertices `Strip
               ~t:tn_tf ~c:tn_outl_c
               ~xs:outl_xs ~ys:outl_ys;
-      let (mes_w, _) = assets.turn_font |> Font.measure tn_text in
       cx |> Ctxt.text tn_text
               ~font:assets.turn_font
               ~t:tn_tf ~c:tn_text_c
-              ~x:(tn_text_x0 - mes_w / 2)
-              ~y:tn_text_y
+              ~x:tn_text_x ~y:tn_text_y
 
     (* entrypoint *)
 
@@ -162,8 +195,17 @@ module Make
 
     (*** processing game state ***)
 
-    let update _time _hud = ()
-    let update_game _time0 _g _hud = ()
+    let update time
+          { assets; turn; _ }
+      =
+      turn |> animate_turn_data ~assets time
+
+    let update_game time0 g
+          { turn; _ }
+      =
+      turn |> update_turn_data time0
+                ~num:(g |> Gameplay.turn_num)
+                ~dur:(g |> Gameplay.turn_duration)
 
     (*** init ***)
 
