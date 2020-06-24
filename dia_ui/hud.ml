@@ -1,4 +1,6 @@
 module Gameplay = Dia_game.Gameplay
+module Player = Dia_game.Player
+module Rules = Dia_game.Rules
 open Util
 
 module type S = sig
@@ -93,6 +95,14 @@ module Make
                       [| hp_y0; hp_y0; hp_y1; hp_y1 |];
         pl_hpbar_fi = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
                       [| hp_y0; hp_y0; hp_y1; hp_y1 |] }
+
+    let set_player_data _time0 (pl: Player.t) player =
+      let hp_amt = float_of_int pl.hp /. float_of_int Rules.max_hp in
+      (* hp bar *)
+      let _, _, hp_x1, _ = hpbar_coords hp_amt in
+      let (fill_xs, _) = player.pl_hpbar_fi in
+      fill_xs.(1) <- hp_x1;
+      fill_xs.(2) <- hp_x1
 
     let render_player_data ~cx
           { pl_tf;
@@ -237,11 +247,15 @@ module Make
       turn |> update_turn_data ~assets time
 
     let update_game time0 g
-          { turn; _ }
+          { turn; player_0; player_1; _ }
       =
       turn |> set_turn_data time0
                 ~num:(g |> Gameplay.turn_num)
-                ~dur:(g |> Gameplay.turn_duration)
+                ~dur:(g |> Gameplay.turn_duration);
+      player_0 |> set_player_data time0
+                    (g |> Gameplay.player_0);
+      player_1 |> set_player_data time0
+                    (g |> Gameplay.player_1)
 
     (*** init ***)
 
