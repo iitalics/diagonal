@@ -127,7 +127,7 @@ module Make
     let bg_xs, bg_ys = [| 0; hud_w; hud_w; 0     |],
                        [| 0; 0;     hud_h; hud_h |]
 
-    let render_bg cx tf =
+    let render_bg ~cx tf =
       cx |> Ctxt.vertices `Fill
               ~t:tf ~c:hud_bg_c
               ~xs:bg_xs ~ys:bg_ys
@@ -170,13 +170,13 @@ module Make
       ignore time0;
       pl_data.pl_hp <- pl.hp
 
-    let render_item_icon_img ~assets cx (typ: Item_type.t) tf =
+    let render_item_icon_img ~assets ~cx (typ: Item_type.t) tf =
       let sx = 352 + 64 * Item_type.to_int typ in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx ~sy:0 ~w:64 ~h:64
 
-    let render_player ~assets cx
+    let render_player ~assets ~cx
           { pl_idx; pl_name; pl_hp; pl_item;
             pl_name_tf; pl_hpbar_tf; pl_items_tf; pl_item_icon_tf }
       =
@@ -201,7 +201,7 @@ module Make
                ~ys:[| 0; 0; h; h; 0 |]);
 
       (* items *)
-      (pl_item_icon_tf |> render_item_icon_img ~assets cx pl_item;
+      (pl_item_icon_tf |> render_item_icon_img ~assets ~cx pl_item;
        let font = assets.act_item_font in
        let (mes_w, _) = font |> Font.measure hud_item_act_text in
        cx |> Ctxt.text hud_item_act_text
@@ -248,7 +248,7 @@ module Make
       fill_xs.(1) <- fill_x1;
       fill_xs.(2) <- fill_x1
 
-    let render_turn_indicator ~assets cx
+    let render_turn_indicator ~assets ~cx
           { tn_tf; tn_text; tn_bar_o; tn_bar_f; _ }
       =
       (let font = assets.turn_font in
@@ -269,10 +269,10 @@ module Make
     let render cx { assets; base_tf; player_0; player_1; turn_data; _ } : unit =
       begin
         base_tf |> update_base_tf (cx |> Ctxt.size);
-        base_tf |> render_bg cx;
-        player_0 |> render_player ~assets cx;
-        player_1 |> render_player ~assets cx;
-        turn_data |> render_turn_indicator ~assets cx;
+        base_tf |> render_bg ~cx;
+        player_0 |> render_player ~assets ~cx;
+        player_1 |> render_player ~assets ~cx;
+        turn_data |> render_turn_indicator ~assets ~cx;
       end
 
     (*** processing game state data ***)
