@@ -1,4 +1,5 @@
 module Gameplay = Dia_game.Gameplay
+module Item_type = Dia_game.Item_type
 module Player = Dia_game.Player
 module Rules = Dia_game.Rules
 open Util
@@ -31,6 +32,7 @@ module Make
     module Color = Draw.Color
     module Ctxt = Draw.Ctxt
     module Font = Draw.Font
+    module Image = Draw.Image
 
     module Rsrc = struct
       include Applicative(Rsrc)
@@ -40,20 +42,26 @@ module Make
     (*** assets ***)
 
     type assets =
-      { turn_font: Font.t;
+      { sprites: Image.t;
+        turn_font: Font.t;
         hp_font: Font.t }
 
     let assets_rsrc : assets rsrc =
+      let images =
+        Rsrc.image ~path:"sprites"
+      in
       let fonts =
         Rsrc.(all
                 [ font ~family:"space_mono" ~size:14;
                   font ~family:"space_mono_bold" ~size:12 ])
       in
-      Rsrc.map
+      Rsrc.map2
         (fun[@ocaml.warning "-8"]
-           [ turn_font; hp_font ]
+            sprites
+            [ turn_font; hp_font ]
          ->
-          { turn_font; hp_font })
+          { sprites; turn_font; hp_font })
+        images
         fonts
 
     (*** rendering ***)
@@ -88,6 +96,13 @@ module Make
     let pl_hp_text_x0 = pl_hpbar_x + pl_hpbar_w - 5
     let pl_hp_text_y0 = pl_hpbar_y + pl_hpbar_h / 2
 
+    let pl_weap_x = 8
+    let pl_weap_y = 48
+    let pl_weap_w = 48
+    let pl_weap_outl_xs, pl_weap_outl_ys =
+      aabb_strip_vertices (pl_weap_x, pl_weap_y,
+                           pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
+
     type player_data =
       { pl_tf: Affine.t;
         (* hp text *)
@@ -97,7 +112,10 @@ module Make
         (* hp bar *)
         pl_hpbar_ol: int array * int array;
         pl_hpbar_bg: int array * int array;
-        pl_hpbar_fi: int array * int array }
+        pl_hpbar_fi: int array * int array;
+        (* item *)
+        pl_item_tf: Affine.t;
+        mutable pl_item: Item_type.t }
 
     let[@ocaml.inline] hpbar_coords amt =
       pl_hpbar_x, pl_hpbar_y,
@@ -110,11 +128,18 @@ module Make
               (padding / 2
                + (idx - 1) * (pl_bbox_w + padding))
               0;
+      let item_tf = tf |> Affine.extend in
+      item_tf |> Affine.translate_i
+                   (pl_weap_x + pl_weap_w / 2)
+                   (pl_weap_y + pl_weap_w / 2);
+      item_tf |> Affine.scale (48. /. 64.) (48. /. 64.);
       { pl_tf = tf;
         pl_hp_text = ""; pl_hp_text_x = 0; pl_hp_text_y = 0;
         pl_hpbar_ol = hpbar_coords 1. |> aabb_strip_vertices;
         pl_hpbar_bg = hpbar_coords 1. |> aabb_fill_vertices;
-        pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices }
+        pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices;
+        pl_item_tf = item_tf;
+        pl_item = Item_type.Dagger }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)
@@ -129,17 +154,30 @@ module Make
       in
       let (fill_xs, _) = player.pl_hpbar_fi in
       fill_xs.(1) <- hp_x1;
-      fill_xs.(2) <- hp_x1
+      fill_xs.(2) <- hp_x1;
+      (* item *)
+      player.pl_item <- pl.item
+
+    let render_item_icon ~assets ~cx typ tf =
+      let sx = 352 + Item_type.to_int typ * 64 in
+      let sy = 0 in
+      cx |> Ctxt.image assets.sprites
+              ~t:tf ~x:(-32) ~y:(-32)
+              ~sx ~sy ~w:64 ~h:64
 
     let render_player_data ~assets ~cx
-          { pl_tf; pl_hp_text; pl_hp_text_x; pl_hp_text_y;
+          { pl_tf;
+            pl_hp_text; pl_hp_text_x; pl_hp_text_y;
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
-            pl_hpbar_fi = (hp_fi_xs, hp_fi_ys) }
+            pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
+            pl_item_tf; pl_item }
       =
+      (* bounding box *)
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:bg_c
               ~xs:pl_bbox_xs ~ys:pl_bbox_ys;
+      (* hp bar *)
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:pl_hpbar_bg_c
               ~xs:hp_bg_xs ~ys:hp_bg_ys;
@@ -149,9 +187,15 @@ module Make
       cx |> Ctxt.vertices `Strip
               ~t:pl_tf ~c:outl_c
               ~xs:hp_ol_xs ~ys:hp_ol_ys;
+      (* hp text *)
       cx |> Ctxt.text pl_hp_text
               ~t:pl_tf ~c:pl_hp_text_c ~font:assets.hp_font
-              ~x:pl_hp_text_x ~y:pl_hp_text_y
+              ~x:pl_hp_text_x ~y:pl_hp_text_y;
+      (* item *)
+      cx |> Ctxt.vertices `Strip
+              ~t:pl_tf ~c:outl_c
+              ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
+      render_item_icon ~assets ~cx pl_item pl_item_tf
 
     (* turn *)
 
