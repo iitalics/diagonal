@@ -44,7 +44,8 @@ module Make
     type assets =
       { sprites: Image.t;
         turn_font: Font.t;
-        hp_font: Font.t }
+        hp_font: Font.t;
+        stats_font: Font.t }
 
     let assets_rsrc : assets rsrc =
       let images =
@@ -53,14 +54,15 @@ module Make
       let fonts =
         Rsrc.(all
                 [ font ~family:"space_mono" ~size:14;
-                  font ~family:"space_mono_bold" ~size:12 ])
+                  font ~family:"space_mono_bold" ~size:12;
+                  font ~family:"space_mono_bold" ~size:14 ])
       in
       Rsrc.map2
         (fun[@ocaml.warning "-8"]
             sprites
-            [ turn_font; hp_font ]
+            [ turn_font; hp_font; stats_font ]
          ->
-          { sprites; turn_font; hp_font })
+          { sprites; turn_font; hp_font; stats_font })
         images
         fonts
 
@@ -84,6 +86,10 @@ module Make
     let pl_bbox_h = 104
     let pl_bbox_xs, pl_bbox_ys = aabb_fill_vertices (0, 0, pl_bbox_w, pl_bbox_h)
 
+    let pl_icon_x = 8
+    let pl_icon_y = 8
+    let pl_icon_w = 32
+
     let pl_hpbar_x = 48
     let pl_hpbar_y = 14
     let pl_hpbar_w = 358 - 1
@@ -91,7 +97,7 @@ module Make
     let pl_hpbar_hp_c = Color.of_rgb_s "#e00"
     let pl_hpbar_bg_c = Color.(of_rgb_s "#fff" |> with_alpha 0.2)
 
-    let pl_hp_text hp = Printf.sprintf "%d HP" hp
+    let pl_hp_text ~hp = Printf.sprintf "%d HP" hp
     let pl_hp_text_c = Color.of_rgb_s "#900"
     let pl_hp_text_x0 = pl_hpbar_x + pl_hpbar_w - 5
     let pl_hp_text_y0 = pl_hpbar_y + pl_hpbar_h / 2
@@ -103,8 +109,19 @@ module Make
       aabb_strip_vertices (pl_weap_x, pl_weap_y,
                            pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
 
+    let pl_stats_x = 64
+    let pl_stats_y1 = 54
+    let pl_stats_y2 = 78
+    let pl_stats_text_c = Color.of_rgb_s "#fff"
+    let pl_stats_text ~atk ~def =
+      (Printf.sprintf "ATK: %d" atk,
+       Printf.sprintf "DEF: %d" def)
+
     type player_data =
       { pl_tf: Affine.t;
+        (* icon *)
+        pl_icon_tf: Affine.t;
+        pl_color: int;
         (* hp text *)
         mutable pl_hp_text: string;
         mutable pl_hp_text_x: int;
@@ -115,14 +132,16 @@ module Make
         pl_hpbar_fi: int array * int array;
         (* item *)
         pl_item_tf: Affine.t;
-        mutable pl_item: Item_type.t }
+        mutable pl_item: Item_type.t;
+        (* stats *)
+        mutable pl_stats_text: string * string }
 
     let[@ocaml.inline] hpbar_coords amt =
       pl_hpbar_x, pl_hpbar_y,
       int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
       pl_hpbar_y + pl_hpbar_h
 
-    let make_player_data base_tf idx =
+    let make_player_data base_tf idx (pl: Player.t) =
       let tf = base_tf |> Affine.extend in
       tf |> Affine.translate_i
               (padding / 2
@@ -132,18 +151,28 @@ module Make
       item_tf |> Affine.translate_i
                    (pl_weap_x + pl_weap_w / 2)
                    (pl_weap_y + pl_weap_w / 2);
-      item_tf |> Affine.scale (48. /. 64.) (48. /. 64.);
+      (let s = float_of_int pl_weap_w /. 64. in
+       item_tf |> Affine.scale s s);
+      let icon_tf = tf |> Affine.extend in
+      icon_tf |> Affine.translate_i
+                   (pl_icon_x + pl_icon_w / 2)
+                   (pl_icon_y + pl_icon_w / 2);
+      (let s = float_of_int pl_icon_w /. 64. in
+       icon_tf |> Affine.scale s s);
       { pl_tf = tf;
+        pl_icon_tf = icon_tf;
+        pl_color = pl.color;
         pl_hp_text = ""; pl_hp_text_x = 0; pl_hp_text_y = 0;
         pl_hpbar_ol = hpbar_coords 1. |> aabb_strip_vertices;
         pl_hpbar_bg = hpbar_coords 1. |> aabb_fill_vertices;
         pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices;
         pl_item_tf = item_tf;
-        pl_item = Item_type.Dagger }
+        pl_item = Item_type.Dagger;
+        pl_stats_text = ("", "") }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)
-      player.pl_hp_text <- pl_hp_text pl.hp;
+      player.pl_hp_text <- pl_hp_text ~hp:pl.hp;
       let (hp_mes_w, hp_mes_h) = assets.hp_font |> Font.measure player.pl_hp_text in
       player.pl_hp_text_x <- pl_hp_text_x0 - hp_mes_w;
       player.pl_hp_text_y <- pl_hp_text_y0 - hp_mes_h / 2;
@@ -156,7 +185,18 @@ module Make
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
       (* item *)
-      player.pl_item <- pl.item
+      player.pl_item <- pl.item;
+      (* stats *)
+      player.pl_stats_text <- pl_stats_text
+                                ~atk:(pl.item |> Item_type.atk)
+                                ~def:0
+
+    let render_player_icon ~assets ~cx color tf =
+      let sx = 0 in
+      let sy = color * 64 in
+      cx |> Ctxt.image assets.sprites
+              ~t:tf ~x:(-32) ~y:(-32)
+              ~sx ~sy ~w:64 ~h:64
 
     let render_item_icon ~assets ~cx typ tf =
       let sx = 352 + Item_type.to_int typ * 64 in
@@ -167,16 +207,21 @@ module Make
 
     let render_player_data ~assets ~cx
           { pl_tf;
+            pl_icon_tf; pl_color;
             pl_hp_text; pl_hp_text_x; pl_hp_text_y;
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
-            pl_item_tf; pl_item }
+            pl_item_tf; pl_item;
+            pl_stats_text = (stats_text1, stats_text2) }
       =
       (* bounding box *)
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:bg_c
               ~xs:pl_bbox_xs ~ys:pl_bbox_ys;
+      (* icon *)
+      render_player_icon ~assets ~cx
+        pl_color pl_icon_tf;
       (* hp bar *)
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:pl_hpbar_bg_c
@@ -195,7 +240,15 @@ module Make
       cx |> Ctxt.vertices `Strip
               ~t:pl_tf ~c:outl_c
               ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
-      render_item_icon ~assets ~cx pl_item pl_item_tf
+      render_item_icon ~assets ~cx
+        pl_item pl_item_tf;
+      (* stats *)
+      cx |> Ctxt.text stats_text1
+              ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
+              ~x:pl_stats_x ~y:pl_stats_y1;
+      cx |> Ctxt.text stats_text2
+              ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
+              ~x:pl_stats_x ~y:pl_stats_y2
 
     (* turn *)
 
@@ -212,7 +265,7 @@ module Make
     let tn_text_y = 10
     let tn_text_x0 = tn_bbox_w / 2
     let tn_text_c = Color.of_rgb_s "#fff"
-    let tn_text n t = Printf.sprintf "Turn %d (%.1fs)" n t
+    let tn_text ~num ~tim = Printf.sprintf "Turn %d (%.1fs)" num tim
 
     type turn_data =
       { tn_tf: Affine.t;
@@ -261,7 +314,9 @@ module Make
     let update_turn_data ~assets time turn =
       let amt = clamp 0. 1. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
       (* update text *)
-      turn.tn_text <- tn_text turn.tn_num (turn.tn_dur *. amt);
+      turn.tn_text <- tn_text
+                        ~num:turn.tn_num
+                        ~tim:(turn.tn_dur *. amt);
       turn.tn_text_x <- (let (mes_w, _) = assets.turn_font |> Font.measure turn.tn_text in
                          tn_text_x0 - mes_w / 2);
       (* update progress bar *)
@@ -328,10 +383,10 @@ module Make
 
     (*** init ***)
 
-    let make assets _g =
+    let make assets g =
       let base_tf = Affine.make () in
       { assets; base_tf;
-        player_0 = make_player_data base_tf 0;
-        player_1 = make_player_data base_tf 1;
+        player_0 = g |> Gameplay.player_0 |> make_player_data base_tf 0;
+        player_1 = g |> Gameplay.player_1 |> make_player_data base_tf 1;
         turn = make_turn_data base_tf }
   end
