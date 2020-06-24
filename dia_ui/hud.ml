@@ -78,20 +78,50 @@ module Make
       [| 0; tn_bbox_w; tn_bbox_w; 0 |],
       [| 0; 0; tn_bbox_h; tn_bbox_h |]
 
+    let tn_amt_x = 8
+    let tn_amt_y = 32
+    let tn_amt_w = 160 - 1
+    let tn_amt_h = 12 - 1
+    let tn_outl_c = Color.(of_rgb_s "#fff")
+    let tn_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.56)
+
+    let tn_amt_coords amt =
+      let x0, y0 = tn_amt_x, tn_amt_y in
+      let x1 = x0 + int_of_float (float_of_int tn_amt_w *. amt) in
+      let y1 = y0 + tn_amt_h in
+      x0, y0, x1, y1
+
     type turn_data =
-      { tn_tf: Affine.t }
+      { tn_tf: Affine.t;
+        tn_bar_ol: int array * int array;
+        tn_bar_fi: int array * int array }
 
     let make_turn_data base_tf =
       let tf = base_tf |> Affine.extend in
       tf |> Affine.translate_i
               (-tn_bbox_w / 2)
               (pl_bbox_h + padding);
-      { tn_tf = tf }
+      let a_x0, a_y0, a_x1, a_y1 = tn_amt_coords 1. in
+      { tn_tf = tf;
+        tn_bar_ol = [| a_x0; a_x1; a_x1; a_x0; a_x0 |],
+                    [| a_y0; a_y0; a_y1; a_y1; a_y0 |];
+        tn_bar_fi = [| a_x0; a_x1; a_x1; a_x0 |],
+                    [| a_y0; a_y0; a_y1; a_y1 |] }
 
-    let render_turn_data ~cx { tn_tf } =
+    let render_turn_data ~cx
+          { tn_tf;
+            tn_bar_ol = (outl_xs, outl_ys);
+            tn_bar_fi = (fill_xs, fill_ys) }
+      =
       cx |> Ctxt.vertices `Fill
               ~t:tn_tf ~c:bg_c
-              ~xs:tn_bbox_xs ~ys:tn_bbox_ys
+              ~xs:tn_bbox_xs ~ys:tn_bbox_ys;
+      cx |> Ctxt.vertices `Fill
+              ~t:tn_tf ~c:tn_fill_c
+              ~xs:fill_xs ~ys:fill_ys;
+      cx |> Ctxt.vertices `Strip
+              ~t:tn_tf ~c:tn_outl_c
+              ~xs:outl_xs ~ys:outl_ys
 
     (* entrypoint *)
 
