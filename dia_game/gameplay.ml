@@ -85,6 +85,34 @@ let damage_of_hits hs =
   (hs.hits_player_0 |> List.sum_by doh,
    hs.hits_player_1 |> List.sum_by doh)
 
+(* players, items *)
+
+let player_0 g = g.pl0
+let player_1 g = g.pl1
+
+let player_collect_item items pos pl =
+  match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pos it_pos) with
+  | Some { it_typ; _ } ->
+     pl |> Player.gain_item it_typ
+  | None ->
+     pl
+
+let player_entities_of_phase pl0 pl1 = function
+  | Turn { idle; _ } | Damage { idle; _ } ->
+     let { pos0; pos1 } = idle in
+     [ Entity.{ id = 0; typ = Blob_idle (pl0, pos0) };
+       Entity.{ id = 1; typ = Blob_idle (pl1, pos1) } ]
+  | Moving { path0; path1 } ->
+     [ Entity.{ id = 0; typ = Blob_moving (pl0, path0) };
+       Entity.{ id = 1; typ = Blob_moving (pl1, path1) } ]
+
+let entity_of_item { it_id; it_pos; it_typ } =
+  Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
+
+let entities t =
+  (t.phase |> player_entities_of_phase t.pl0 t.pl1)
+  @ (t.map_items |> List.rev_map entity_of_item)
+
 (* phases, turns *)
 
 let phase_duration g = match g.phase with
@@ -112,13 +140,14 @@ let end_phase g =
   | Moving { path0; path1 } ->
      let hits = collision_hits path0 path1 in
      let (dmg0, dmg1) = hits |> damage_of_hits in
-     let pl0 = g.pl0 |> Player.take_damage dmg1 in
-     let pl1 = g.pl1 |> Player.take_damage dmg0 in
+     let (pos0, pos1) = (path0 |> Path.target, path1 |> Path.target) in
+     let pl0 = g.pl0 |> Player.take_damage dmg1 |>
+                 player_collect_item g.map_items pos0 in
+     let pl1 = g.pl1 |> Player.take_damage dmg0 |>
+                 player_collect_item g.map_items pos1 in
      { g with
        pl0; pl1;
-       phase = Damage { hits;
-                        idle = { pos0 = path0 |> Path.target;
-                                 pos1 = path1 |> Path.target } } }
+       phase = Damage { hits; idle = { pos0; pos1 } } }
 
   | Damage { idle; _ } ->
      { g with
@@ -173,27 +202,6 @@ let cursor t =
   match t.phase with
   | Turn { cu; _ } -> Some(cu)
   | Moving _ | Damage _ -> None
-
-(* players, items *)
-
-let player_0 g = g.pl0
-let player_1 g = g.pl1
-
-let player_entities_of_phase pl0 pl1 = function
-  | Turn { idle; _ } | Damage { idle; _ } ->
-     let { pos0; pos1 } = idle in
-     [ Entity.{ id = 0; typ = Blob_idle (pl0, pos0) };
-       Entity.{ id = 1; typ = Blob_idle (pl1, pos1) } ]
-  | Moving { path0; path1 } ->
-     [ Entity.{ id = 0; typ = Blob_moving (pl0, path0) };
-       Entity.{ id = 1; typ = Blob_moving (pl1, path1) } ]
-
-let entity_of_item { it_id; it_pos; it_typ } =
-  Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
-
-let entities t =
-  (t.phase |> player_entities_of_phase t.pl0 t.pl1)
-  @ (t.map_items |> List.rev_map entity_of_item)
 
 (* init *)
 

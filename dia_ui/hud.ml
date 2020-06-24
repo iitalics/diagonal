@@ -75,7 +75,7 @@ module Make
       { pl_idx: int;
         pl_name: string;
         mutable pl_hp: int;
-        pl_item: Item_type.t;
+        mutable pl_item: Item_type.t;
         pl_name_tf: Affine.t;
         pl_hpbar_tf: Affine.t;
         pl_items_tf: Affine.t;
@@ -166,7 +166,8 @@ module Make
 
     let update_player_data time0 (pl: Player.t) (pl_data: player_data) =
       ignore time0;
-      pl_data.pl_hp <- pl.hp
+      pl_data.pl_hp <- pl.hp;
+      pl_data.pl_item <- pl.item
 
     let render_item_icon_img ~assets ~cx (typ: Item_type.t) tf =
       let sx = 352 + 64 * Item_type.to_int typ in

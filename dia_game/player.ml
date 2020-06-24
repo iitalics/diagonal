@@ -10,3 +10,6 @@ let make ~color =
 
 let take_damage dmg pl =
   { pl with hp = max 0 (pl.hp - dmg) }
+
+let gain_item item pl =
+  { pl with item }
