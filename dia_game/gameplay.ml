@@ -167,15 +167,19 @@ let cursor t =
 let player_0 g = g.pl0
 let player_1 g = g.pl1
 
-let entities t =
-  match t.phase with
+let player_entities pl0 pl1 = function
   | Turn { idle; _ } | Damage { idle; _ } ->
      let { pos0; pos1 } = idle in
-     [ Entity.{ id = 0; typ = Blob_idle (t.pl0, pos0) };
-       Entity.{ id = 1; typ = Blob_idle (t.pl1, pos1) } ]
+     [ Entity.{ id = 0; typ = Blob_idle (pl0, pos0) };
+       Entity.{ id = 1; typ = Blob_idle (pl1, pos1) } ]
   | Moving { path0; path1 } ->
-     [ Entity.{ id = 0; typ = Blob_moving (t.pl0, path0) };
-       Entity.{ id = 1; typ = Blob_moving (t.pl1, path1) } ]
+     [ Entity.{ id = 0; typ = Blob_moving (pl0, path0) };
+       Entity.{ id = 1; typ = Blob_moving (pl1, path1) } ]
+
+let entities t =
+  player_entities t.pl0 t.pl1 t.phase @
+    [ Entity.{ id = 2; typ = Item (Item_type.Dagger, (2, 1)) };
+      Entity.{ id = 3; typ = Item (Item_type.Rapier, (2, 3)) } ]
 
 (* init *)
 

@@ -2,6 +2,7 @@ module Entity = Dia_game.Entity
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
+module Item_type = Dia_game.Item_type
 module Path = Dia_game.Path
 module Player = Dia_game.Player
 module Pos = Dia_game.Pos
@@ -87,7 +88,7 @@ module Make
       { en_id: Entity.id;
         en_look: entity_look;
         en_tf: Affine.t;
-        mutable en_y: float }
+        mutable en_z_order: float }
 
     and entity_look =
       | Hidden
@@ -95,6 +96,9 @@ module Make
           { color: int; face: int;
             x: float; y: float;
             path: path_anim option }
+      | Item of
+          { typ: int;
+            x: float; y: float }
 
     and path_anim =
       { dis0: float; vel: float;
@@ -319,16 +323,24 @@ module Make
       | Y -> (d_off *. x_sgn, s_off *. y_sgn)
 
     let subcell_pos_of_entity_look time = function
-      | Hidden -> (0., 0.)
+      | Hidden ->
+         (0., 0.)
       | Blob { x; y; path = None; _ } ->
          (x, y)
       | Blob { x; y; path = Some a; _ } ->
          let (dx, dy) = a |> subcell_off_of_path_anim time in
          (x +. dx, y +. dy)
+      | Item { x; y; _ } ->
+         (x, y)
 
     let blob_entity_look Player.{ color; _ } (x, y) path =
       let face = [| 0; 3 |].(color) in
       Blob { color; face; path;
+             x = float_of_int x;
+             y = float_of_int y }
+
+    let item_entity_look typ (x, y) =
+      Item { typ = Item_type.to_int typ;
              x = float_of_int x;
              y = float_of_int y }
 
@@ -339,15 +351,17 @@ module Make
            blob_entity_look pl pos None;
         | Entity.Blob_moving (pl, pa) ->
            blob_entity_look pl (pa |> Path.source) (Some (pa |> make_path_anim time0))
+        | Entity.Item (typ, pos) ->
+           item_entity_look typ pos
       in
       { en_id = en.id;
         en_look = look;
         en_tf = base_tf |> Affine.extend;
-        en_y = 0. }
+        en_z_order = 0. }
 
     let update_entity_tf time (e: entity_data) =
       let (cx, cy) = subcell_pos_of_entity_look time e.en_look in
-      e.en_y <- cy;
+      e.en_z_order <- cy;
       e.en_tf |> Affine.reset;
       e.en_tf |> translate_to_grid_center_fl (cx, cy)
 
@@ -362,6 +376,9 @@ module Make
       | Blob { color; face; _ } ->
          let sx, sy = 64 * face, 64 * color in
          (-32, -32, sx, sy, 64, 64)
+      | Item { typ; _ } ->
+         let sx = 352 + typ * 64 in
+         (-32, -32, sx, 0, 64, 64)
 
     let render_entity ~assets ~cx { en_look; en_tf; _ } =
       let (x, y, sx, sy, w, h) = en_look |> entity_look_sprite_clip in
@@ -374,12 +391,13 @@ module Make
       |> Array.of_list
 
     let update_map_elements time { ents; _ } =
+      let compare { en_z_order = z1; _ } { en_z_order = z2; _ } =
+        Float.compare z1 z2
+      in
+      ents |> Array.sort compare;
       ents |> Array.iter (update_entity_tf time)
 
     let render_map_elements ~cx { assets; ents; _ } =
-      let compare { en_y = y1; _ } { en_y = y2; _ } =
-        Float.compare y1 y2 in
-      ents |> Array.sort compare;
       ents |> Array.iter (render_entity ~assets ~cx)
 
     (* -- main entry point -- *)
