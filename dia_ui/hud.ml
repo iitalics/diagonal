@@ -32,14 +32,29 @@ module Make
     module Ctxt = Draw.Ctxt
     module Font = Draw.Font
 
+    module Rsrc = struct
+      include Applicative(Rsrc)
+      include Rsrc
+    end
+
     (*** assets ***)
 
     type assets =
-      { turn_font: Font.t }
+      { turn_font: Font.t;
+        hp_font: Font.t }
 
     let assets_rsrc : assets rsrc =
-      Rsrc.map (fun turn_font -> { turn_font })
-        (Rsrc.font ~family:"space_mono" ~size:14)
+      let fonts =
+        Rsrc.(all
+                [ font ~family:"space_mono" ~size:14;
+                  font ~family:"space_mono_bold" ~size:12 ])
+      in
+      Rsrc.map
+        (fun[@ocaml.warning "-8"]
+           [ turn_font; hp_font ]
+         ->
+          { turn_font; hp_font })
+        fonts
 
     (*** rendering ***)
 
@@ -70,8 +85,16 @@ module Make
     let pl_hpbar_hp_c = Color.of_rgb_s "#e00"
     let pl_hpbar_bg_c = Color.(of_rgb_s "#fff" |> with_alpha 0.2)
 
+    let pl_hp_text hp = Printf.sprintf "%d HP" hp
+    let pl_hp_text_c = Color.of_rgb_s "#900"
+    let pl_hp_text_x0 = pl_hpbar_x + pl_hpbar_w - 5
+    let pl_hp_text_y0 = pl_hpbar_y + pl_hpbar_h / 2
+
     type player_data =
       { pl_tf: Affine.t;
+        mutable pl_hp_text: string;
+        mutable pl_hp_text_x: int;
+        mutable pl_hp_text_y: int;
         pl_hpbar_ol: int array * int array;
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array }
@@ -89,6 +112,7 @@ module Make
               0;
       let hp_x0, hp_y0, hp_x1, hp_y1 = hpbar_coords 1. in
       { pl_tf = tf;
+        pl_hp_text = ""; pl_hp_text_x = 0; pl_hp_text_y = 0;
         pl_hpbar_ol = [| hp_x0; hp_x1; hp_x1; hp_x0; hp_x0 |],
                       [| hp_y0; hp_y0; hp_y1; hp_y1; hp_y0 |];
         pl_hpbar_bg = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
@@ -96,16 +120,23 @@ module Make
         pl_hpbar_fi = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
                       [| hp_y0; hp_y0; hp_y1; hp_y1 |] }
 
-    let set_player_data _time0 (pl: Player.t) player =
-      let hp_amt = float_of_int pl.hp /. float_of_int Rules.max_hp in
+    let set_player_data ~assets _time0 (pl: Player.t) player =
+      (* hp text *)
+      player.pl_hp_text <- pl_hp_text pl.hp;
+      let (hp_mes_w, hp_mes_h) = assets.hp_font |> Font.measure player.pl_hp_text in
+      player.pl_hp_text_x <- pl_hp_text_x0 - hp_mes_w;
+      player.pl_hp_text_y <- pl_hp_text_y0 - hp_mes_h / 2;
       (* hp bar *)
-      let _, _, hp_x1, _ = hpbar_coords hp_amt in
+      let _, _, hp_x1, _ =
+        hpbar_coords
+          (float_of_int pl.hp /. float_of_int Rules.max_hp)
+      in
       let (fill_xs, _) = player.pl_hpbar_fi in
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1
 
-    let render_player_data ~cx
-          { pl_tf;
+    let render_player_data ~assets ~cx
+          { pl_tf; pl_hp_text; pl_hp_text_x; pl_hp_text_y;
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys) }
@@ -121,7 +152,10 @@ module Make
               ~xs:hp_fi_xs ~ys:hp_fi_ys;
       cx |> Ctxt.vertices `Strip
               ~t:pl_tf ~c:outl_c
-              ~xs:hp_ol_xs ~ys:hp_ol_ys
+              ~xs:hp_ol_xs ~ys:hp_ol_ys;
+      cx |> Ctxt.text pl_hp_text
+              ~t:pl_tf ~c:pl_hp_text_c ~font:assets.hp_font
+              ~x:pl_hp_text_x ~y:pl_hp_text_y
 
     (* turn *)
 
@@ -234,8 +268,8 @@ module Make
       =
       begin
         base_tf |> update_base_tf (cx |> Ctxt.size);
-        player_0 |> render_player_data ~cx;
-        player_1 |> render_player_data ~cx;
+        player_0 |> render_player_data ~assets ~cx;
+        player_1 |> render_player_data ~assets ~cx;
         turn |> render_turn_data ~assets ~cx;
       end
 
@@ -247,14 +281,14 @@ module Make
       turn |> update_turn_data ~assets time
 
     let update_game time0 g
-          { turn; player_0; player_1; _ }
+          { assets; turn; player_0; player_1; _ }
       =
       turn |> set_turn_data time0
                 ~num:(g |> Gameplay.turn_num)
                 ~dur:(g |> Gameplay.turn_duration);
-      player_0 |> set_player_data time0
+      player_0 |> set_player_data ~assets time0
                     (g |> Gameplay.player_0);
-      player_1 |> set_player_data time0
+      player_1 |> set_player_data ~assets time0
                     (g |> Gameplay.player_1)
 
     (*** init ***)
