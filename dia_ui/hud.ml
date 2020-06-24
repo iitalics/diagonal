@@ -55,14 +55,29 @@ module Make
 
     (* players *)
 
-    type player_data =
-      { pl_tf: Affine.t }
-
     let pl_bbox_w = 420
     let pl_bbox_h = 104
     let pl_bbox_xs, pl_bbox_ys =
       [| 0; pl_bbox_w; pl_bbox_w; 0 |],
       [| 0; 0; pl_bbox_h; pl_bbox_h |]
+
+    let pl_hpbar_x = 48
+    let pl_hpbar_y = 14
+    let pl_hpbar_w = 358 - 1
+    let pl_hpbar_h = 20 - 1
+    let pl_hpbar_hp_c = Color.of_rgb_s "#e00"
+    let pl_hpbar_bg_c = Color.(of_rgb_s "#fff" |> with_alpha 0.2)
+
+    type player_data =
+      { pl_tf: Affine.t;
+        pl_hpbar_ol: int array * int array;
+        pl_hpbar_bg: int array * int array;
+        pl_hpbar_fi: int array * int array }
+
+    let hpbar_coords amt =
+      pl_hpbar_x, pl_hpbar_y,
+      int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
+      pl_hpbar_y + pl_hpbar_h
 
     let make_player_data base_tf idx =
       let tf = base_tf |> Affine.extend in
@@ -70,12 +85,33 @@ module Make
               (padding / 2
                + (idx - 1) * (pl_bbox_w + padding))
               0;
-      { pl_tf = tf }
+      let hp_x0, hp_y0, hp_x1, hp_y1 = hpbar_coords 1. in
+      { pl_tf = tf;
+        pl_hpbar_ol = [| hp_x0; hp_x1; hp_x1; hp_x0; hp_x0 |],
+                      [| hp_y0; hp_y0; hp_y1; hp_y1; hp_y0 |];
+        pl_hpbar_bg = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
+                      [| hp_y0; hp_y0; hp_y1; hp_y1 |];
+        pl_hpbar_fi = [| hp_x0; hp_x1; hp_x1; hp_x0 |],
+                      [| hp_y0; hp_y0; hp_y1; hp_y1 |] }
 
-    let render_player_data ~cx { pl_tf } =
+    let render_player_data ~cx
+          { pl_tf;
+            pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
+            pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
+            pl_hpbar_fi = (hp_fi_xs, hp_fi_ys) }
+      =
       cx |> Ctxt.vertices `Fill
               ~t:pl_tf ~c:bg_c
-              ~xs:pl_bbox_xs ~ys:pl_bbox_ys
+              ~xs:pl_bbox_xs ~ys:pl_bbox_ys;
+      cx |> Ctxt.vertices `Fill
+              ~t:pl_tf ~c:pl_hpbar_bg_c
+              ~xs:hp_bg_xs ~ys:hp_bg_ys;
+      cx |> Ctxt.vertices `Fill
+              ~t:pl_tf ~c:pl_hpbar_hp_c
+              ~xs:hp_fi_xs ~ys:hp_fi_ys;
+      cx |> Ctxt.vertices `Strip
+              ~t:pl_tf ~c:outl_c
+              ~xs:hp_ol_xs ~ys:hp_ol_ys
 
     (* turn *)
 
