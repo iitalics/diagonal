@@ -1,4 +1,5 @@
 module Gameplay = Dia_game.Gameplay
+open Util
 
 module type S = sig
   type assets
@@ -46,6 +47,7 @@ module Make
 
     let base_y = 20
     let padding = 12
+    let outl_c = Color.of_rgb_s "#fff"
 
     let update_base_tf (w, _) tf =
       tf |> Affine.reset;
@@ -87,7 +89,6 @@ module Make
     let tn_amt_y = 32
     let tn_amt_w = 160 - 1
     let tn_amt_h = 12 - 1
-    let tn_outl_c = Color.of_rgb_s "#fff"
     let tn_fill_c = Color.(of_rgb_s "#fff" |> with_alpha 0.56)
 
     let tn_text_y = 10
@@ -107,10 +108,9 @@ module Make
         mutable tn_text_x: int }
 
     let turn_amt_coords amt =
-      let x0, y0 = tn_amt_x, tn_amt_y in
-      let x1 = x0 + int_of_float (float_of_int tn_amt_w *. amt) in
-      let y1 = y0 + tn_amt_h in
-      x0, y0, x1, y1
+      tn_amt_x, tn_amt_y,
+      int_lerp amt tn_amt_x (tn_amt_x + tn_amt_w),
+      (tn_amt_y + tn_amt_h)
 
     let make_turn_data base_tf =
       let tf = base_tf |> Affine.extend in
@@ -127,7 +127,7 @@ module Make
         tn_text = "";
         tn_text_x = 0 }
 
-    let update_turn_data time0 ~num ~dur turn =
+    let set_turn_data time0 ~num ~dur turn =
       let (amt0, vel, dur) =
         match dur with
         | None -> (0., 0., 1.)
@@ -143,8 +143,8 @@ module Make
       turn.tn_amt_vel <- vel;
       turn.tn_dur <- dur
 
-    let animate_turn_data ~assets time turn =
-      let amt = max 0. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
+    let update_turn_data ~assets time turn =
+      let amt = clamp 0. 1. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
       (* update text *)
       turn.tn_text <- tn_text turn.tn_num (turn.tn_dur *. amt);
       turn.tn_text_x <- (let (mes_w, _) = assets.turn_font |> Font.measure turn.tn_text in
@@ -167,7 +167,7 @@ module Make
               ~t:tn_tf ~c:tn_fill_c
               ~xs:fill_xs ~ys:fill_ys;
       cx |> Ctxt.vertices `Strip
-              ~t:tn_tf ~c:tn_outl_c
+              ~t:tn_tf ~c:outl_c
               ~xs:outl_xs ~ys:outl_ys;
       cx |> Ctxt.text tn_text
               ~font:assets.turn_font
@@ -198,12 +198,12 @@ module Make
     let update time
           { assets; turn; _ }
       =
-      turn |> animate_turn_data ~assets time
+      turn |> update_turn_data ~assets time
 
     let update_game time0 g
           { turn; _ }
       =
-      turn |> update_turn_data time0
+      turn |> set_turn_data time0
                 ~num:(g |> Gameplay.turn_num)
                 ~dur:(g |> Gameplay.turn_duration)
 

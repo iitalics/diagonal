@@ -38,3 +38,11 @@ module List = struct
 
   include List
 end
+
+let clamp lo hi x =
+  if      x < lo then lo
+  else if x > hi then hi
+  else                x
+
+let int_lerp t x0 x1 =
+  x0 + int_of_float (float_of_int (x1 - x0) *. t)
