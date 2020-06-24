@@ -76,14 +76,15 @@ let hits g =
   | Damage { hits; _ } -> hits
   | Turn _ | Moving _ -> no_hits
 
-let damage_of_hit_type = function
-  | Crit -> 2
-  | Attk -> 1
+let damage_of_hit (pl: Player.t) = function
+  | { hit_type = Crit; _ } ->
+     (pl.item |> Item_type.atk) + (pl.item |> Item_type.crit_bonus)
+  | { hit_type = Attk; _ } ->
+     (pl.item |> Item_type.atk)
 
-let damage_of_hits hs =
-  let doh { hit_type; _ } = hit_type |> damage_of_hit_type in
-  (hs.hits_player_0 |> List.sum_by doh,
-   hs.hits_player_1 |> List.sum_by doh)
+let damage_of_hits pl0 pl1 hs =
+  (hs.hits_player_0 |> List.sum_by (damage_of_hit pl0),
+   hs.hits_player_1 |> List.sum_by (damage_of_hit pl1))
 
 (* players, items *)
 
@@ -144,7 +145,7 @@ let end_phase g =
 
   | Moving { path0; path1 } ->
      let hits = collision_hits path0 path1 in
-     let (dmg0, dmg1) = hits |> damage_of_hits in
+     let (dmg0, dmg1) = hits |> damage_of_hits g.pl0 g.pl1 in
      let (pos0, pos1) = (path0 |> Path.target, path1 |> Path.target) in
      let pl0 = g.pl0 |> Player.take_damage dmg1 |>
                  player_collect_item g.map_items pos0 in

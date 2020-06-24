@@ -18,3 +18,17 @@ let name = function
   | Sword  -> "sword"
   | Rapier -> "rapier"
   | Staff  -> "staff"
+
+let atk = function
+  | Shovel -> 1
+  | Dagger -> 2
+  | Sword  -> 3
+  | Rapier -> 5
+  | Staff  -> 2
+
+let crit_bonus = function
+  | Shovel
+    | Dagger
+    | Sword
+    | Rapier -> 1
+  | Staff    -> 2
