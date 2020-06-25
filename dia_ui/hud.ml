@@ -13,7 +13,7 @@ module type S = sig
   type t
   val make: assets -> Gameplay.t -> t
   val update: float -> t -> unit
-  val update_game: float -> Gameplay.t -> t -> unit
+  val set_game_data: float -> Gameplay.t -> t -> unit
 
   type draw_ctxt
   val render: draw_ctxt -> t -> unit
@@ -405,7 +405,7 @@ module Make
       =
       turn |> update_turn_data ~assets time
 
-    let update_game time0 g
+    let set_game_data time0 g
           { assets; turn; player_0; player_1; _ }
       =
       turn |> set_turn_data time0

@@ -416,7 +416,7 @@ module Make
 
     (*** processing game state data ***)
 
-    let update_game time0 (game: Gameplay.t) (v: t) =
+    let set_game_data time0 (game: Gameplay.t) (v: t) =
       (* entities *)
       v.ents <- make_entity_array time0 v.map_tf (game |> Gameplay.entities);
       (* cursor *)
@@ -428,7 +428,7 @@ module Make
       (* paths *)
       v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
       (* HUD *)
-      v.hud |> HUD.update_game time0 game;
+      v.hud |> HUD.set_game_data time0 game;
       v.game <- game
 
     (*** event handling ***)
@@ -439,7 +439,7 @@ module Make
         let dur = v.game |> Gameplay.phase_duration in
         let end_time = start_time +. dur in
         if time >= end_time then
-          ( v |> update_game end_time (v.game |> Gameplay.end_phase);
+          ( v |> set_game_data end_time (v.game |> Gameplay.end_phase);
             advance_phase_loop end_time )
         else
           v.phase_start_time <- start_time
@@ -451,7 +451,7 @@ module Make
 
     let handle_evt evt v =
       let update_by f =
-        v |> update_game v.phase_start_time (f v.game)
+        v |> set_game_data v.phase_start_time (f v.game)
       in
       let input_of_key_code = function
         | "ArrowLeft"  -> Some Input.Key.Left
@@ -491,6 +491,6 @@ module Make
           hit_marks = [||];
           hit_mark_tfs = [||] }
       in
-      v0 |> update_game 0. game;
+      v0 |> set_game_data 0. game;
       v0
   end
