@@ -8,6 +8,7 @@ and typ =
   | Blob_idle of Player.t * Pos.t
   | Blob_moving of Player.t * Path.t
   | Item of Item_type.t * Pos.t
+  | Obstacle of Spell_type.t * Pos.t
 
 module Id = struct
   type nonrec t = id

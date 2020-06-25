@@ -119,6 +119,11 @@ let entity_of_item { it_id; it_pos; it_typ } =
 let entities t =
   (t.phase |> player_entities_of_phase t.pl0 t.pl1)
   @ (t.map_items |> List.rev_map entity_of_item)
+  @ [ Entity.{ id = 6; typ = Obstacle (Fire, (2, 2)) };
+      Entity.{ id = 7; typ = Obstacle (Fire, (3, 2)) };
+      Entity.{ id = 8; typ = Obstacle (Fire, (4, 2)) };
+      Entity.{ id = 9; typ = Obstacle (Fire, (5, 2)) } ]
+
 
 (* phases, turns *)
 

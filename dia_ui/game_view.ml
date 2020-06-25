@@ -315,17 +315,21 @@ module Make
          | Y -> (d_off *. x_sgn, s_off *. y_sgn)
 
     let sprite_clip_of_item = function
-      | Item_type.Weapon w -> 352 + 64 * Weapon_type.to_int w, 0
-      | Item_type.Spell s  -> 416 + 64 * Spell_type.to_int s,  64
+      | Item_type.Weapon w -> (352 + 64 * Weapon_type.to_int w, 0)
+      | Item_type.Spell s  -> (416 + 64 * Spell_type.to_int s,  64)
 
     let sprite_clip_of_player Player.{ color; _ } =
       let face = [| 0; 3 |].(color) in
       (face * 64, color * 64)
 
+    let sprite_clip_of_obstacle s =
+      (416 + 64 * Spell_type.to_int s, 128)
+
     let make_entity_data time0 base_tf (en: Entity.t) =
       let anim, pos, (sx, sy) =
         match en.typ with
         | Item (typ, pos)        -> No_anim, pos, (typ |> sprite_clip_of_item)
+        | Obstacle (typ, pos)    -> No_anim, pos, (typ |> sprite_clip_of_obstacle)
         | Blob_idle (pl, pos)    -> No_anim, pos, (pl |> sprite_clip_of_player)
         | Blob_moving (pl, path) -> (path |> entity_anim_of_path time0),
                                     (path |> Path.source),
