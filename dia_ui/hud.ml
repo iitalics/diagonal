@@ -142,7 +142,7 @@ module Make
         pl_weap_tf: Affine.t;
         pl_spell_tf: Affine.t;
         mutable pl_weap: Weapon_type.t;
-        pl_spell: Spell_type.t option;
+        mutable pl_spell: Spell_type.t option;
         (* stats *)
         mutable pl_stats_text: string * string }
 
@@ -190,10 +190,7 @@ module Make
         pl_weap_tf = weap_tf;
         pl_spell_tf = spell_tf;
         pl_weap = pl.weapon;
-        pl_spell = (match pl.color with
-                    | 0 -> Some Fire
-                    | 1 -> Some Ice
-                    | _ -> None);
+        pl_spell = pl.spell;
         pl_stats_text = ("", "") }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
@@ -212,6 +209,7 @@ module Make
       fill_xs.(2) <- hp_x1;
       (* item *)
       player.pl_weap <- pl.weapon;
+      player.pl_spell <- pl.spell;
       (* stats *)
       player.pl_stats_text <- pl_stats_text
                                 ~atk:(pl.weapon |> Weapon_type.atk)
