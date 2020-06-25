@@ -251,7 +251,7 @@ module Make
     let render_cursor ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:768 ~sy:160 ~w:64 ~h:64
+              ~sx:704 ~sy:0 ~w:64 ~h:64
 
     let make_hit_mark_array base_tf (h: Gameplay.hits) =
       let tfs, mks =
@@ -266,12 +266,8 @@ module Make
       Array.of_list mks, Array.of_list tfs
 
     let render_hit_mark ~assets ~cx i (typ: hit_type) tf =
-      let sx, sy = match typ with
-        | Attk -> 832, 160
-        | Crit -> 896, 160
-        (* | Dfnd -> 832, 224
-           | Vuln -> 896, 224 *)
-      in
+      let sx = match typ with Attk -> 704 | Crit -> 768 in
+      let sy = 64 in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx ~sy ~w:64 ~h:64;
