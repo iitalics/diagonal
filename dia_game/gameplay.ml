@@ -33,7 +33,7 @@ and hit_type =
 and item =
   { it_id: Entity.id;
     it_pos: Pos.t;
-    it_typ : Weapon_type.t }
+    it_typ : Item_type.t }
 
 type point_type = Path.point_type
 
@@ -95,7 +95,7 @@ let player_1 g = g.pl1
 let player_collect_item items pos pl =
   match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pos it_pos) with
   | Some { it_typ; _ } ->
-     pl |> Player.pick_up_weapon it_typ
+     pl |> Player.pick_up it_typ
   | None ->
      pl
 
@@ -218,8 +218,10 @@ let spawn =
     pos1 = (6, 7) }
 
 let initial_items =
-  [ { it_id = 2; it_pos = (3, 7); it_typ = Staff };
-    { it_id = 3; it_pos = (4, 0); it_typ = Rapier } ]
+  [ { it_id = 2; it_pos = (3, 7); it_typ = Weapon Staff };
+    { it_id = 3; it_pos = (4, 0); it_typ = Weapon Rapier };
+    { it_id = 4; it_pos = (1, 1); it_typ = Spell Fire };
+    { it_id = 5; it_pos = (6, 0); it_typ = Spell Ice } ]
 
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   { pl0 = Player.make ~color:0;

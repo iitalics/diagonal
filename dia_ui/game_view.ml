@@ -2,10 +2,12 @@ module Entity = Dia_game.Entity
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
+module Item_type = Dia_game.Item_type
 module Path = Dia_game.Path
 module Player = Dia_game.Player
 module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
+module Spell_type = Dia_game.Spell_type
 module Weapon_type = Dia_game.Weapon_type
 open Util
 
@@ -93,11 +95,13 @@ module Make
     and entity_look =
       | Hidden
       | Blob of
-          { color: int; face: int;
+          { sprite_sx: int;
+            sprite_sy: int;
             x: float; y: float;
             path: path_anim option }
       | Item of
-          { typ: int;
+          { sprite_sx: int;
+            sprite_sy: int;
             x: float; y: float }
 
     and path_anim =
@@ -335,12 +339,20 @@ module Make
 
     let blob_entity_look Player.{ color; _ } (x, y) path =
       let face = [| 0; 3 |].(color) in
-      Blob { color; face; path;
+      let sprite_sx = face * 64 in
+      let sprite_sy = color * 64 in
+      Blob { sprite_sx; sprite_sy; path;
              x = float_of_int x;
              y = float_of_int y }
 
     let item_entity_look typ (x, y) =
-      Item { typ = Weapon_type.to_int typ;
+      let sprite_sx, sprite_sy = match typ with
+        | Item_type.Weapon w ->
+           352 + 64 * Weapon_type.to_int w, 0
+        | Item_type.Spell s ->
+           416 + 64 * Spell_type.to_int s, 64
+      in
+      Item { sprite_sx; sprite_sy;
              x = float_of_int x;
              y = float_of_int y }
 
@@ -373,12 +385,8 @@ module Make
     let entity_look_sprite_clip = function
       | Hidden ->
          (0, 0, 0, 0, 0, 0)
-      | Blob { color; face; _ } ->
-         let sx, sy = 64 * face, 64 * color in
-         (-32, -32, sx, sy, 64, 64)
-      | Item { typ; _ } ->
-         let sx = 352 + typ * 64 in
-         (-32, -32, sx, 0, 64, 64)
+      | Blob { sprite_sx; sprite_sy; _ } | Item { sprite_sx; sprite_sy; _ } ->
+         (-32, -32, sprite_sx, sprite_sy, 64, 64)
 
     let render_entity ~assets ~cx { en_look; en_tf; _ } =
       let (x, y, sx, sy, w, h) = en_look |> entity_look_sprite_clip in
