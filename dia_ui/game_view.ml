@@ -88,27 +88,19 @@ module Make
 
     and entity_data =
       { en_id: Entity.id;
-        en_look: entity_look;
         en_tf: Affine.t;
-        mutable en_z_order: float }
+        en_sprite_sx: int;
+        en_sprite_sy: int;
+        en_pos: Pos.t;
+        en_anim: entity_anim; mutable en_z: float }
 
-    and entity_look =
-      | Hidden
-      | Blob of
-          { sprite_sx: int;
-            sprite_sy: int;
-            x: float; y: float;
-            path: path_anim option }
-      | Item of
-          { sprite_sx: int;
-            sprite_sy: int;
-            x: float; y: float }
-
-    and path_anim =
-      { dis0: float; vel: float;
-        s_dis: float; d_dis: float; len: float;
-        x_sgn: float; y_sgn: float;
-        axis: Path.axis }
+    and entity_anim =
+      | No_anim
+      | Path_anim of
+          { dis0: float; vel: float;
+            s_dis: float; d_dis: float; len: float;
+            x_sgn: float; y_sgn: float;
+            axis: Path.axis }
 
     and path_data =
       { pa_tf: Affine.t;
@@ -299,95 +291,63 @@ module Make
 
     let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
 
-    let make_path_anim time0 (pa: Path.t) =
+    let entity_anim_of_path time0 (pa: Path.t) =
       let vel = Rules.move_vel in
-      { dis0  = ~-. time0 *. vel;
-        vel;
-        s_dis = float_of_int pa.s_dis;
-        d_dis = float_of_int pa.d_dis;
-        len   = pa |> Path.length;
-        x_sgn = float_of_int pa.x_sgn;
-        y_sgn = float_of_int pa.y_sgn;
-        axis  = pa.axis }
+      Path_anim { vel;
+                  dis0  = ~-. time0 *. vel;
+                  s_dis = float_of_int pa.s_dis;
+                  d_dis = float_of_int pa.d_dis;
+                  len   = pa |> Path.length;
+                  x_sgn = float_of_int pa.x_sgn;
+                  y_sgn = float_of_int pa.y_sgn;
+                  axis  = pa.axis }
 
-    let subcell_off_of_path_anim time
-          { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis; _ }
-      =
-      let d = dis0 +. time *. vel in
-      let d' = (d -. s_dis) *. sqrt2_2 in
-      let s_off, d_off = if      d <= s_dis then d, 0.
-                         else if d <= len   then s_dis +. d', d'
-                         else                    s_dis +. d_dis, d_dis in
-      match axis with
-      | X -> (s_off *. x_sgn, d_off *. y_sgn)
-      | Y -> (d_off *. x_sgn, s_off *. y_sgn)
+    let cell_offset_of_entity_anim time = function
+      | No_anim -> (0., 0.)
+      | Path_anim { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis; _ } ->
+         let d = dis0 +. time *. vel in
+         let d' = (d -. s_dis) *. sqrt2_2 in
+         let s_off, d_off = if      d <= s_dis then d, 0.
+                            else if d <= len   then s_dis +. d', d'
+                            else                    s_dis +. d_dis, d_dis in
+         match axis with
+         | X -> (s_off *. x_sgn, d_off *. y_sgn)
+         | Y -> (d_off *. x_sgn, s_off *. y_sgn)
 
-    let subcell_pos_of_entity_look time = function
-      | Hidden ->
-         (0., 0.)
-      | Blob { x; y; path = None; _ } ->
-         (x, y)
-      | Blob { x; y; path = Some a; _ } ->
-         let (dx, dy) = a |> subcell_off_of_path_anim time in
-         (x +. dx, y +. dy)
-      | Item { x; y; _ } ->
-         (x, y)
+    let sprite_clip_of_item = function
+      | Item_type.Weapon w -> 352 + 64 * Weapon_type.to_int w, 0
+      | Item_type.Spell s  -> 416 + 64 * Spell_type.to_int s,  64
 
-    let blob_entity_look Player.{ color; _ } (x, y) path =
+    let sprite_clip_of_player Player.{ color; _ } =
       let face = [| 0; 3 |].(color) in
-      let sprite_sx = face * 64 in
-      let sprite_sy = color * 64 in
-      Blob { sprite_sx; sprite_sy; path;
-             x = float_of_int x;
-             y = float_of_int y }
-
-    let item_entity_look typ (x, y) =
-      let sprite_sx, sprite_sy = match typ with
-        | Item_type.Weapon w ->
-           352 + 64 * Weapon_type.to_int w, 0
-        | Item_type.Spell s ->
-           416 + 64 * Spell_type.to_int s, 64
-      in
-      Item { sprite_sx; sprite_sy;
-             x = float_of_int x;
-             y = float_of_int y }
+      (face * 64, color * 64)
 
     let make_entity_data time0 base_tf (en: Entity.t) =
-      let look =
+      let anim, pos, (sx, sy) =
         match en.typ with
-        | Entity.Blob_idle (pl, pos) ->
-           blob_entity_look pl pos None;
-        | Entity.Blob_moving (pl, pa) ->
-           blob_entity_look pl (pa |> Path.source) (Some (pa |> make_path_anim time0))
-        | Entity.Item (typ, pos) ->
-           item_entity_look typ pos
+        | Item (typ, pos)        -> No_anim, pos, (typ |> sprite_clip_of_item)
+        | Blob_idle (pl, pos)    -> No_anim, pos, (pl |> sprite_clip_of_player)
+        | Blob_moving (pl, path) -> (path |> entity_anim_of_path time0),
+                                    (path |> Path.source),
+                                    (pl |> sprite_clip_of_player)
       in
       { en_id = en.id;
-        en_look = look;
         en_tf = base_tf |> Affine.extend;
-        en_z_order = 0. }
+        en_sprite_sx = sx; en_sprite_sy = sy;
+        en_pos = pos; en_anim = anim; en_z = 0. }
 
     let update_entity_tf time (e: entity_data) =
-      let (cx, cy) = subcell_pos_of_entity_look time e.en_look in
-      e.en_z_order <- cy;
+      let (x0, y0) = e.en_pos in
+      let (dx, dy) = e.en_anim |> cell_offset_of_entity_anim time in
+      let x, y = float_of_int x0 +. dx, float_of_int y0 +. dy in
       e.en_tf |> Affine.reset;
-      e.en_tf |> translate_to_grid_center_fl (cx, cy)
+      e.en_tf |> translate_to_grid_center_fl (x, y);
+      e.en_z <- y
 
-    let render_blob_img ~assets ~cx color face tf =
+    let render_entity ~assets ~cx { en_tf; en_sprite_sx; en_sprite_sy; _ } =
       cx |> Ctxt.image assets.sprites
-              ~x:(-32) ~y:(-32) ~t:tf
-              ~sx:(0 + 64 * face) ~sy:(0 + 64 * color) ~w:64 ~h:64
-
-    let entity_look_sprite_clip = function
-      | Hidden ->
-         (0, 0, 0, 0, 0, 0)
-      | Blob { sprite_sx; sprite_sy; _ } | Item { sprite_sx; sprite_sy; _ } ->
-         (-32, -32, sprite_sx, sprite_sy, 64, 64)
-
-    let render_entity ~assets ~cx { en_look; en_tf; _ } =
-      let (x, y, sx, sy, w, h) = en_look |> entity_look_sprite_clip in
-      cx |> Ctxt.image assets.sprites
-              ~x ~y ~sx ~sy ~w ~h ~t:en_tf
+              ~t:en_tf ~sx:en_sprite_sx ~sy:en_sprite_sy
+              ~x:(-32) ~y:(-32) ~w:64 ~h:64
 
     let make_entity_array time base_tf (ens: Entity.t list) =
       ens
@@ -395,9 +355,7 @@ module Make
       |> Array.of_list
 
     let update_map_elements time { ents; _ } =
-      let compare { en_z_order = z1; _ } { en_z_order = z2; _ } =
-        Float.compare z1 z2
-      in
+      let compare { en_z = z1; _ } { en_z = z2; _ } = Float.compare z1 z2 in
       ents |> Array.sort compare;
       ents |> Array.iter (update_entity_tf time)
 
