@@ -2,11 +2,11 @@ module Entity = Dia_game.Entity
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
 module Input = Dia_game.Input
-module Item_type = Dia_game.Item_type
 module Path = Dia_game.Path
 module Player = Dia_game.Player
 module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
+module Weapon_type = Dia_game.Weapon_type
 open Util
 
 module type S =
@@ -340,7 +340,7 @@ module Make
              y = float_of_int y }
 
     let item_entity_look typ (x, y) =
-      Item { typ = Item_type.to_int typ;
+      Item { typ = Weapon_type.to_int typ;
              x = float_of_int x;
              y = float_of_int y }
 

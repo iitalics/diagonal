@@ -1,8 +1,8 @@
 module Gameplay = Dia_game.Gameplay
-module Item_type = Dia_game.Item_type
-module Spell_type = Dia_game.Spell_type
 module Player = Dia_game.Player
 module Rules = Dia_game.Rules
+module Spell_type = Dia_game.Spell_type
+module Weapon_type = Dia_game.Weapon_type
 open Util
 
 module type S = sig
@@ -141,7 +141,7 @@ module Make
         (* item *)
         pl_weap_tf: Affine.t;
         pl_spell_tf: Affine.t;
-        mutable pl_weap: Item_type.t;
+        mutable pl_weap: Weapon_type.t;
         pl_spell: Spell_type.t option;
         (* stats *)
         mutable pl_stats_text: string * string }
@@ -189,7 +189,7 @@ module Make
         pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices;
         pl_weap_tf = weap_tf;
         pl_spell_tf = spell_tf;
-        pl_weap = pl.item;
+        pl_weap = pl.weapon;
         pl_spell = (match pl.color with
                     | 0 -> Some Fire
                     | 1 -> Some Ice
@@ -211,10 +211,10 @@ module Make
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
       (* item *)
-      player.pl_weap <- pl.item;
+      player.pl_weap <- pl.weapon;
       (* stats *)
       player.pl_stats_text <- pl_stats_text
-                                ~atk:(pl.item |> Item_type.atk)
+                                ~atk:(pl.weapon |> Weapon_type.atk)
                                 ~def:0
 
     let render_player_icon ~assets ~cx tf color =
@@ -225,7 +225,7 @@ module Make
               ~sx ~sy ~w:64 ~h:64
 
     let render_weap_icon ~assets ~cx tf typ =
-      let sx = 352 + Item_type.to_int typ * 64 in
+      let sx = 352 + Weapon_type.to_int typ * 64 in
       let sy = 0 in
       cx |> Ctxt.image assets.sprites
               ~t:tf ~x:(-32) ~y:(-32)

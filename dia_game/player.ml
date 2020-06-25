@@ -1,15 +1,15 @@
 type t =
   { hp: int;
     color: int;
-    item: Item_type.t }
+    weapon: Weapon_type.t }
 
 let make ~color =
   { color;
     hp = Rules.max_hp;
-    item = Dagger }
+    weapon = Dagger }
 
 let take_damage dmg pl =
   { pl with hp = max 0 (pl.hp - dmg) }
 
-let pick_up item pl =
-  { pl with item }
+let pick_up_weapon weapon pl =
+  { pl with weapon }

@@ -33,7 +33,7 @@ and hit_type =
 and item =
   { it_id: Entity.id;
     it_pos: Pos.t;
-    it_typ : Item_type.t }
+    it_typ : Weapon_type.t }
 
 type point_type = Path.point_type
 
@@ -76,15 +76,16 @@ let hits g =
   | Damage { hits; _ } -> hits
   | Turn _ | Moving _ -> no_hits
 
-let damage_of_hit (pl: Player.t) = function
+let damage_of_hit ~player:Player.{ weapon; _ } =
+  function
   | { hit_type = Crit; _ } ->
-     (pl.item |> Item_type.atk) + (pl.item |> Item_type.crit_bonus)
+     (weapon |> Weapon_type.atk) + (weapon |> Weapon_type.crit_bonus)
   | { hit_type = Attk; _ } ->
-     (pl.item |> Item_type.atk)
+     (weapon |> Weapon_type.atk)
 
 let damage_of_hits pl0 pl1 hs =
-  (hs.hits_player_0 |> List.sum_by (damage_of_hit pl0),
-   hs.hits_player_1 |> List.sum_by (damage_of_hit pl1))
+  (hs.hits_player_0 |> List.sum_by (damage_of_hit ~player:pl0),
+   hs.hits_player_1 |> List.sum_by (damage_of_hit ~player:pl1))
 
 (* players, items *)
 
@@ -94,7 +95,7 @@ let player_1 g = g.pl1
 let player_collect_item items pos pl =
   match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pos it_pos) with
   | Some { it_typ; _ } ->
-     pl |> Player.pick_up it_typ
+     pl |> Player.pick_up_weapon it_typ
   | None ->
      pl
 
