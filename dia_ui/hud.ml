@@ -46,6 +46,7 @@ module Make
       { sprites: Image.t;
         turn_font: Font.t;
         hp_font: Font.t;
+        spell_casts_font: Font.t;
         stats_font: Font.t }
 
     let assets_rsrc : assets rsrc =
@@ -56,14 +57,15 @@ module Make
         Rsrc.(all
                 [ font ~family:"space_mono" ~size:14;
                   font ~family:"space_mono_bold" ~size:12;
+                  font ~family:"space_mono_bold" ~size:14;
                   font ~family:"space_mono_bold" ~size:14 ])
       in
       Rsrc.map2
         (fun[@ocaml.warning "-8"]
             sprites
-            [ turn_font; hp_font; stats_font ]
+            [ turn_font; hp_font; spell_casts_font; stats_font ]
          ->
-          { sprites; turn_font; hp_font; stats_font })
+          { sprites; turn_font; hp_font; spell_casts_font; stats_font })
         images
         fonts
 
@@ -118,6 +120,11 @@ module Make
       Util.aabb_strip_vertices (pl_spell_x, pl_spell_y,
                                 pl_spell_x + pl_spell_w, pl_spell_y + pl_spell_w)
 
+    let pl_spell_casts_x = pl_spell_x + 30
+    let pl_spell_casts_y = pl_spell_y + 28
+    let pl_spell_casts_c = Color.of_rgb_s "#f22"
+    let pl_spell_casts_text n = string_of_int n
+
     let pl_stats_x = 112
     let pl_stats_y1 = 54
     let pl_stats_y2 = 78
@@ -144,6 +151,7 @@ module Make
         pl_spell_tf: Affine.t;
         mutable pl_weap: Weapon_type.t;
         mutable pl_spell: Spell_type.t option;
+        mutable pl_spell_casts_text: string;
         (* stats *)
         mutable pl_stats_text: string * string }
 
@@ -192,6 +200,7 @@ module Make
         pl_spell_tf = spell_tf;
         pl_weap = pl.weapon;
         pl_spell = pl.spell;
+        pl_spell_casts_text = "";
         pl_stats_text = ("", "") }
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
@@ -211,6 +220,10 @@ module Make
       (* item *)
       player.pl_weap <- pl.weapon;
       player.pl_spell <- pl.spell;
+      player.pl_spell_casts_text <-
+        (match pl.spell with
+         | Some(_) -> pl_spell_casts_text @@ Rules.map_casts - pl.casts
+         | None -> "");
       (* stats *)
       player.pl_stats_text <- pl_stats_text
                                 ~atk:(pl.weapon |> Weapon_type.atk)
@@ -245,6 +258,7 @@ module Make
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
             pl_weap_tf; pl_spell_tf; pl_weap; pl_spell;
+            pl_spell_casts_text;
             pl_stats_text = (stats_text1, stats_text2) }
       =
       (* bounding box *)
@@ -276,6 +290,9 @@ module Make
               ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
       pl_weap |> render_weap_icon ~assets ~cx pl_weap_tf;
       pl_spell |> Option.iter (render_spell_icon ~assets ~cx pl_spell_tf);
+      cx |> Ctxt.text pl_spell_casts_text
+              ~t:pl_tf ~c:pl_spell_casts_c ~font:assets.spell_casts_font
+              ~x:pl_spell_casts_x ~y:pl_spell_casts_y;
       (* stats *)
       cx |> Ctxt.text stats_text1
               ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
