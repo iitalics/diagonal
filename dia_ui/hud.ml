@@ -222,7 +222,7 @@ module Make
       player.pl_spell <- pl.spell;
       player.pl_spell_casts_text <-
         (match pl.spell with
-         | Some(_) -> pl_spell_casts_text @@ Rules.map_casts - pl.casts
+         | Some(_) -> pl_spell_casts_text @@ Rules.max_casts - pl.casts
          | None -> "");
       (* stats *)
       player.pl_stats_text <- pl_stats_text

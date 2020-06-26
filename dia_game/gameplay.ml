@@ -191,11 +191,16 @@ let end_phase g =
 
   | Moving { path0; path1 } ->
      let { pl0; pl1; map_items; map_obs; next_id; _ } = g in
+     (* cast spells *)
+     let s0, pl0 = pl0 |> Player.use_spell_cast
+     and s1, pl1 = pl1 |> Player.use_spell_cast in
+     let map_obs, next_id = s0 |> cast_spell path0 map_obs next_id in
+     let map_obs, next_id = s1 |> cast_spell path1 map_obs next_id in
+     (* take damage *)
      let hits = collision_hits path0 path1 in
      let (dmg0, dmg1) = hits |> damage_of_hits pl0 pl1 in
-     let map_obs, next_id = pl0.spell |> cast_spell path0 map_obs next_id in
-     let map_obs, next_id = pl1.spell |> cast_spell path1 map_obs next_id in
      let (pos0, pos1) = (path0 |> Path.target, path1 |> Path.target) in
+     (* pick up items *)
      let pl0 = pl0 |> Player.take_damage dmg1 |>
                  player_collect_item g.map_items pos0
      and pl1 = pl1 |> Player.take_damage dmg0 |>
