@@ -29,3 +29,9 @@ let use_spell_cast pl =
                  { pl with spell = None }
                else
                  { pl with casts })
+
+let remaining_casts pl =
+  if pl.spell |> Option.is_some then
+    Some (Rules.max_casts - pl.casts)
+  else
+    None

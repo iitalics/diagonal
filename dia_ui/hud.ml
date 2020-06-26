@@ -221,8 +221,8 @@ module Make
       player.pl_weap <- pl.weapon;
       player.pl_spell <- pl.spell;
       player.pl_spell_casts_text <-
-        (match pl.spell with
-         | Some(_) -> pl_spell_casts_text @@ Rules.max_casts - pl.casts
+        (match pl |> Player.remaining_casts with
+         | Some n -> pl_spell_casts_text n
          | None -> "");
       (* stats *)
       player.pl_stats_text <- pl_stats_text
