@@ -97,7 +97,7 @@ let damage_of_hits pl0 pl1 hs =
   (hs.hits_player_0 |> List.sum_by (damage_of_hit ~player:pl0),
    hs.hits_player_1 |> List.sum_by (damage_of_hit ~player:pl1))
 
-(* entities *)
+(* players *)
 
 let player_0 g = g.pl0
 let player_1 g = g.pl1
@@ -109,11 +109,6 @@ let player_collect_item items pos pl =
   | None ->
      pl
 
-let pick_up_items pick_up items =
-  items |> List.filter
-             (fun { it_pos; _ } ->
-               not (pick_up |> List.exists (Pos.equal it_pos) ))
-
 let player_entities_of_phase pl0 pl1 = function
   | Turn { idle; _ } | Damage { idle; _ } ->
      let { pos0; pos1 } = idle in
@@ -123,40 +118,52 @@ let player_entities_of_phase pl0 pl1 = function
      [ Entity.{ id = 0; typ = Blob_moving (pl0, path0) };
        Entity.{ id = 1; typ = Blob_moving (pl1, path1) } ]
 
+(* items *)
+
+let pick_up_items pick_up items =
+  items |> List.filter
+             (fun { it_pos; _ } ->
+               not (pick_up |> List.exists (Pos.equal it_pos) ))
+
+let spawn_items items next_id descs =
+  descs |> List.fold_left
+             (fun (items, id) (typ, pos) ->
+               { it_id = id;
+                 it_typ = typ;
+                 it_pos = pos } :: items,
+               id + 1)
+             (items, next_id)
+
 let entity_of_item { it_id; it_pos; it_typ } =
   Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
 
+(* obstacles *)
+
+let spawn_obs obs next_id descs =
+  descs |> List.fold_left
+             (fun (obs, id) (typ, pos) ->
+               { ob_id = id;
+                 ob_typ = typ;
+                 ob_pos = pos } :: obs,
+               id + 1)
+             (obs, next_id)
+
+let cast_spell path obs next_id spell =
+  match spell, Path.knee path with
+  | Some typ, Some pos ->
+     [ typ, pos ] |> spawn_obs obs next_id
+  | _, _ ->
+     obs, next_id
+
 let entity_of_ob { ob_id; ob_pos; ob_typ } =
   Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos) }
+
+(* entities *)
 
 let entities t =
   (t.phase |> player_entities_of_phase t.pl0 t.pl1)
   @ (t.map_items |> List.rev_map entity_of_item)
   @ (t.map_obs |> List.rev_map entity_of_ob)
-
-let spawn_items descs g =
-  let map_items, next_id =
-    descs |> List.fold_left
-               (fun (map_items, id) (typ, pos) ->
-                 { it_id = id;
-                   it_typ = typ;
-                   it_pos = pos } :: map_items,
-                 id + 1)
-               (g.map_items, g.next_id)
-  in
-  { g with map_items; next_id }
-
-let spawn_obs descs g =
-  let map_obs, next_id =
-    descs |> List.fold_left
-               (fun (map_obs, id) (typ, pos) ->
-                 { ob_id = id;
-                   ob_typ = typ;
-                   ob_pos = pos } :: map_obs,
-                 id + 1)
-               (g.map_obs, g.next_id)
-  in
-  { g with map_obs; next_id }
 
 (* phases, turns *)
 
@@ -183,16 +190,19 @@ let end_phase g =
                         path1 = Path.from_points ~src:pos1 ~tgt:pos1' } }
 
   | Moving { path0; path1 } ->
+     let { pl0; pl1; map_items; map_obs; next_id; _ } = g in
      let hits = collision_hits path0 path1 in
-     let (dmg0, dmg1) = hits |> damage_of_hits g.pl0 g.pl1 in
+     let (dmg0, dmg1) = hits |> damage_of_hits pl0 pl1 in
+     let map_obs, next_id = pl0.spell |> cast_spell path0 map_obs next_id in
+     let map_obs, next_id = pl1.spell |> cast_spell path1 map_obs next_id in
      let (pos0, pos1) = (path0 |> Path.target, path1 |> Path.target) in
-     let pl0 = g.pl0 |> Player.take_damage dmg1 |>
-                 player_collect_item g.map_items pos0 in
-     let pl1 = g.pl1 |> Player.take_damage dmg0 |>
+     let pl0 = pl0 |> Player.take_damage dmg1 |>
+                 player_collect_item g.map_items pos0
+     and pl1 = pl1 |> Player.take_damage dmg0 |>
                  player_collect_item g.map_items pos1 in
-     let map_items = g.map_items |> pick_up_items [ pos0; pos1 ] in
+     let map_items = map_items |> pick_up_items [ pos0; pos1 ] in
      { g with
-       pl0; pl1; map_items;
+       pl0; pl1; map_items; map_obs; next_id;
        phase = Damage { hits; idle = { pos0; pos1 } } }
 
   | Damage { idle; _ } ->
@@ -252,21 +262,27 @@ let cursor t =
 (* init *)
 
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
+  let map_items, map_obs, next_id = [], [], 2 in
+  let map_items, next_id =
+    [ Item_type.Weapon Staff,  (3, 7);
+      Item_type.Weapon Rapier, (4, 0);
+      Item_type.Spell Fire,    (1, 1);
+      Item_type.Spell Ice,     (6, 0) ]
+    |> spawn_items map_items next_id
+  in
+  let map_obs, next_id =
+    List.init 4 (fun i -> Spell_type.Fire, (2 + i, 2))
+    |> spawn_obs map_obs next_id
+  in
   { turn_num = 1;
     phase = idle_turn { pos0 = (3, 3);
                         pos1 = (6, 7) };
-
     pl0 = Player.make ~color:0;
     pl1 = Player.make ~color:1;
     pc0; pc1;
-    next_id = 2;
-    map_items = [];
-    map_obs = [] }
-  |> spawn_items [ Weapon Staff,  (3, 7);
-                   Weapon Rapier, (4, 0);
-                   Spell Fire,    (1, 1);
-                   Spell Ice,     (6, 0) ]
-  |> spawn_obs (List.init 4 (fun i -> Spell_type.Fire, (2 + i, 2)))
+    next_id;
+    map_items;
+    map_obs }
 
 (* events *)
 

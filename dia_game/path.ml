@@ -73,3 +73,11 @@ let point { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } i =
 
 let points pa =
   List.init (num_points pa) (point pa)
+
+let knee { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
+  if s_dis = 0 || d_dis = 0 then
+    None
+  else
+    Some(match axis with
+         | X -> x0 + s_dis * x_sgn, y0
+         | Y -> x0, y0 + s_dis * y_sgn)
