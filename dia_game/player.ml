@@ -20,18 +20,14 @@ let pick_up item pl =
   | Item_type.Weapon w -> { pl with weapon = w }
   | Item_type.Spell s  -> { pl with spell = Some s; casts = 0 }
 
-let use_spell_cast pl =
-  match pl.spell with
-  | None   -> None, pl
-  | Some s -> Some s,
-              (let casts = pl.casts + 1 in
-               if casts >= Rules.max_casts then
-                 { pl with spell = None }
-               else
-                 { pl with casts })
-
 let remaining_casts pl =
   if pl.spell |> Option.is_some then
-    Some (Rules.max_casts - pl.casts)
+    Some (Weapon_type.spell_casts pl.weapon - pl.casts)
   else
     None
+
+let use_spell_cast pl =
+  match pl.spell, remaining_casts pl with
+  | None, _        -> None, pl
+  | Some s, Some 1 -> Some s, { pl with spell = None }
+  | Some s, _      -> Some s, { pl with casts = pl.casts + 1 }

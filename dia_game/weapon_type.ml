@@ -25,3 +25,10 @@ let crit_bonus = function
     | Sword
     | Rapier -> 1
   | Staff    -> 2
+
+let spell_casts = function
+  | Shovel
+    | Dagger
+    | Sword
+    | Rapier -> 3
+  | Staff    -> 4
