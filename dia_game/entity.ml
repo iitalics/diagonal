@@ -1,23 +1,21 @@
-type t =
-  { id: id;
-    typ: typ }
+module Id = struct
+  type nonrec t = int
+  let compare = Int.compare
+end
 
-and id = int
-
-and typ =
+type typ =
   | Blob_idle of Player.t * Pos.t
   | Blob_moving of Player.t * Path.t
   | Item of Item_type.t * Pos.t
   | Obstacle of Spell_type.t * Pos.t
 
-module Id = struct
-  type nonrec t = id
-  let compare = Int.compare
-end
-
 module Typ = struct
   type nonrec t = typ
 end
+
+type t =
+  { id: Id.t;
+    typ: typ }
 
 let compare_id { id = i; _ } { id = j; _ } =
   Id.compare i j
