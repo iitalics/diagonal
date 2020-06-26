@@ -1,14 +1,18 @@
 open Dia_util
 
 type t =
-  { pl0: Player.t;
+  { (* turn / phase *)
+    turn_num: int;
+    phase: phase;
+    (* players *)
+    pl0: Player.t;
     pl1: Player.t;
     pc0: Player_controller.t;
     pc1: Player_controller.t;
+    (* map entities *)
+    next_id: int;
     map_items: item list;
-    turn_num: int;
-    phase: phase;
-    next_id: int }
+    map_obs: ob list }
 
 and phase =
   | Turn of { idle: idle; cu: Pos.t }
@@ -35,6 +39,11 @@ and item =
   { it_id: Entity.Id.t;
     it_pos: Pos.t;
     it_typ : Item_type.t }
+
+and ob =
+  { ob_id: Entity.Id.t;
+    ob_pos: Pos.t;
+    ob_typ: Spell_type.t }
 
 type point_type = Path.point_type
 
@@ -117,9 +126,13 @@ let player_entities_of_phase pl0 pl1 = function
 let entity_of_item { it_id; it_pos; it_typ } =
   Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
 
+let entity_of_ob { ob_id; ob_pos; ob_typ } =
+  Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos) }
+
 let entities t =
   (t.phase |> player_entities_of_phase t.pl0 t.pl1)
   @ (t.map_items |> List.rev_map entity_of_item)
+  @ (t.map_obs |> List.rev_map entity_of_ob)
 
 let spawn_items descs g =
   let map_items, next_id =
@@ -129,10 +142,21 @@ let spawn_items descs g =
                    it_typ = typ;
                    it_pos = pos } :: map_items,
                  id + 1)
-               (g.map_items,
-                g.next_id)
+               (g.map_items, g.next_id)
   in
   { g with map_items; next_id }
+
+let spawn_obs descs g =
+  let map_obs, next_id =
+    descs |> List.fold_left
+               (fun (map_obs, id) (typ, pos) ->
+                 { ob_id = id;
+                   ob_typ = typ;
+                   ob_pos = pos } :: map_obs,
+                 id + 1)
+               (g.map_obs, g.next_id)
+  in
+  { g with map_obs; next_id }
 
 (* phases, turns *)
 
@@ -228,18 +252,21 @@ let cursor t =
 (* init *)
 
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
-  { pl0 = Player.make ~color:0;
-    pl1 = Player.make ~color:1;
-    pc0; pc1;
-    turn_num = 1;
+  { turn_num = 1;
     phase = idle_turn { pos0 = (3, 3);
                         pos1 = (6, 7) };
+
+    pl0 = Player.make ~color:0;
+    pl1 = Player.make ~color:1;
+    pc0; pc1;
+    next_id = 2;
     map_items = [];
-    next_id = 2 }
+    map_obs = [] }
   |> spawn_items [ Weapon Staff,  (3, 7);
                    Weapon Rapier, (4, 0);
                    Spell Fire,    (1, 1);
                    Spell Ice,     (6, 0) ]
+  |> spawn_obs (List.init 4 (fun i -> Spell_type.Fire, (2 + i, 2)))
 
 (* events *)
 
