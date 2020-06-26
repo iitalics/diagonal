@@ -2,4 +2,5 @@
   assets_src
   dia_game
   dia_js
-  dia_ui)
+  dia_ui
+  dia_util)

@@ -9,7 +9,7 @@ module Pos = Dia_game.Pos
 module Rules = Dia_game.Rules
 module Spell_type = Dia_game.Spell_type
 module Weapon_type = Dia_game.Weapon_type
-open Util
+open Dia_util
 
 module type S =
   View.S with type init = Gameplay.t

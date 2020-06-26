@@ -1,4 +1,4 @@
-module List = Util.List
+open Dia_util
 
 type t =
   { pl0: Player.t;

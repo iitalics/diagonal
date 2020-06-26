@@ -1,9 +1,8 @@
-module Option = Util.Option
+open Dia_util
 
 module type S =
   sig
     include View.Basic_S
-
     val make: unit -> t
   end
 

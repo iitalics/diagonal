@@ -3,7 +3,7 @@ module Player = Dia_game.Player
 module Rules = Dia_game.Rules
 module Spell_type = Dia_game.Spell_type
 module Weapon_type = Dia_game.Weapon_type
-open Util
+open Dia_util
 
 module type S = sig
   type assets
@@ -36,8 +36,8 @@ module Make
     module Image = Draw.Image
 
     module Rsrc = struct
-      include Applicative(Rsrc)
       include Rsrc
+      include Applicative(Rsrc)
     end
 
     (*** assets ***)
@@ -85,7 +85,8 @@ module Make
 
     let pl_bbox_w = 420
     let pl_bbox_h = 104
-    let pl_bbox_xs, pl_bbox_ys = aabb_fill_vertices (0, 0, pl_bbox_w, pl_bbox_h)
+    let pl_bbox_xs, pl_bbox_ys =
+      Util.aabb_fill_vertices (0, 0, pl_bbox_w, pl_bbox_h)
 
     let pl_icon_x = 8
     let pl_icon_y = 8
@@ -107,15 +108,15 @@ module Make
     let pl_weap_y = 48
     let pl_weap_w = 48
     let pl_weap_outl_xs, pl_weap_outl_ys =
-      aabb_strip_vertices (pl_weap_x, pl_weap_y,
-                           pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
+      Util.aabb_strip_vertices (pl_weap_x, pl_weap_y,
+                                pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
 
     let pl_spell_x = 64
     let pl_spell_y = 52
     let pl_spell_w = 40
     let pl_spell_outl_xs, pl_spell_outl_ys =
-      aabb_strip_vertices (pl_spell_x, pl_spell_y,
-                           pl_spell_x + pl_spell_w, pl_spell_y + pl_spell_w)
+      Util.aabb_strip_vertices (pl_spell_x, pl_spell_y,
+                                pl_spell_x + pl_spell_w, pl_spell_y + pl_spell_w)
 
     let pl_stats_x = 112
     let pl_stats_y1 = 54
@@ -148,7 +149,7 @@ module Make
 
     let[@ocaml.inline] hpbar_coords amt =
       pl_hpbar_x, pl_hpbar_y,
-      int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
+      Util.int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
       pl_hpbar_y + pl_hpbar_h
 
     let make_player_data base_tf idx (pl: Player.t) =
@@ -184,9 +185,9 @@ module Make
         pl_icon_tf = icon_tf;
         pl_color = pl.color;
         pl_hp_text = ""; pl_hp_text_x = 0; pl_hp_text_y = 0;
-        pl_hpbar_ol = hpbar_coords 1. |> aabb_strip_vertices;
-        pl_hpbar_bg = hpbar_coords 1. |> aabb_fill_vertices;
-        pl_hpbar_fi = hpbar_coords 1. |> aabb_fill_vertices;
+        pl_hpbar_ol = hpbar_coords 1. |> Util.aabb_strip_vertices;
+        pl_hpbar_bg = hpbar_coords 1. |> Util.aabb_fill_vertices;
+        pl_hpbar_fi = hpbar_coords 1. |> Util.aabb_fill_vertices;
         pl_weap_tf = weap_tf;
         pl_spell_tf = spell_tf;
         pl_weap = pl.weapon;
@@ -287,7 +288,8 @@ module Make
 
     let tn_bbox_w = 176
     let tn_bbox_h = 52
-    let tn_bbox_xs, tn_bbox_ys = aabb_fill_vertices (0, 0, tn_bbox_w, tn_bbox_h)
+    let tn_bbox_xs, tn_bbox_ys =
+      Util.aabb_fill_vertices (0, 0, tn_bbox_w, tn_bbox_h)
 
     let tn_amt_x = 8
     let tn_amt_y = 32
@@ -313,7 +315,7 @@ module Make
 
     let turn_amt_coords amt =
       tn_amt_x, tn_amt_y,
-      int_lerp amt tn_amt_x (tn_amt_x + tn_amt_w),
+      Util.int_lerp amt tn_amt_x (tn_amt_x + tn_amt_w),
       (tn_amt_y + tn_amt_h)
 
     let make_turn_data base_tf =
@@ -322,8 +324,8 @@ module Make
               (-tn_bbox_w / 2)
               (pl_bbox_h + padding);
       { tn_tf = tf;
-        tn_bar_ol = turn_amt_coords 1. |> aabb_strip_vertices;
-        tn_bar_fi = turn_amt_coords 1. |> aabb_fill_vertices;
+        tn_bar_ol = turn_amt_coords 1. |> Util.aabb_strip_vertices;
+        tn_bar_fi = turn_amt_coords 1. |> Util.aabb_fill_vertices;
         tn_amt0 = 1.0; tn_amt_vel = 0.; tn_num = 0; tn_dur = 1.;
         tn_text = "";
         tn_text_x = 0 }
@@ -345,7 +347,7 @@ module Make
       turn.tn_dur <- dur
 
     let update_turn_data ~assets time turn =
-      let amt = clamp 0. 1. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
+      let amt = Util.clamp 0. 1. (turn.tn_amt0 +. turn.tn_amt_vel *. time) in
       (* update text *)
       turn.tn_text <- tn_text
                         ~num:turn.tn_num

@@ -1,4 +1,4 @@
-module List = Util.List
+open Dia_util
 
 module Xorshift(P: sig
                     val a: int

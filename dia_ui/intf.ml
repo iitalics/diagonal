@@ -1,13 +1,4 @@
-(* misc. *)
-
-module type S0 = sig type t end
-
-module type Applicative_S = sig
-  type 'a t
-  val const: 'a -> 'a t
-  val map: ('a -> 'b) -> 'a t -> 'b t
-  val map2: ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
-end
+open Dia_util
 
 (* drawing primitives *)
 

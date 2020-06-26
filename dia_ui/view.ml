@@ -9,7 +9,7 @@ end
 (*** view interface ***)
 
 module type Basic_S = sig
-  include Intf.S0
+  type t
 
   (* event handling *)
   val update: float -> t -> unit

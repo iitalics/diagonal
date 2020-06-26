@@ -1,2 +1,4 @@
 (library
- (name dia_game))
+ (name dia_game)
+ (libraries
+   dia_util))
