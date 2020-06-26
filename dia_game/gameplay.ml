@@ -7,7 +7,8 @@ type t =
     pc1: Player_controller.t;
     map_items: item list;
     turn_num: int;
-    phase: phase }
+    phase: phase;
+    next_id: int }
 
 and phase =
   | Turn of { idle: idle; cu: Pos.t }
@@ -31,7 +32,7 @@ and hit_type =
   | Attk
 
 and item =
-  { it_id: Entity.id;
+  { it_id: Entity.Id.t;
     it_pos: Pos.t;
     it_typ : Item_type.t }
 
@@ -87,7 +88,7 @@ let damage_of_hits pl0 pl1 hs =
   (hs.hits_player_0 |> List.sum_by (damage_of_hit ~player:pl0),
    hs.hits_player_1 |> List.sum_by (damage_of_hit ~player:pl1))
 
-(* players, items *)
+(* entities *)
 
 let player_0 g = g.pl0
 let player_1 g = g.pl1
@@ -119,11 +120,19 @@ let entity_of_item { it_id; it_pos; it_typ } =
 let entities t =
   (t.phase |> player_entities_of_phase t.pl0 t.pl1)
   @ (t.map_items |> List.rev_map entity_of_item)
-  @ [ Entity.{ id = 6; typ = Obstacle (Fire, (2, 2)) };
-      Entity.{ id = 7; typ = Obstacle (Fire, (3, 2)) };
-      Entity.{ id = 8; typ = Obstacle (Fire, (4, 2)) };
-      Entity.{ id = 9; typ = Obstacle (Fire, (5, 2)) } ]
 
+let spawn_items descs g =
+  let map_items, next_id =
+    descs |> List.fold_left
+               (fun (map_items, id) (typ, pos) ->
+                 { it_id = id;
+                   it_typ = typ;
+                   it_pos = pos } :: map_items,
+                 id + 1)
+               (g.map_items,
+                g.next_id)
+  in
+  { g with map_items; next_id }
 
 (* phases, turns *)
 
@@ -218,23 +227,19 @@ let cursor t =
 
 (* init *)
 
-let spawn =
-  { pos0 = (3, 3);
-    pos1 = (6, 7) }
-
-let initial_items =
-  [ { it_id = 2; it_pos = (3, 7); it_typ = Weapon Staff };
-    { it_id = 3; it_pos = (4, 0); it_typ = Weapon Rapier };
-    { it_id = 4; it_pos = (1, 1); it_typ = Spell Fire };
-    { it_id = 5; it_pos = (6, 0); it_typ = Spell Ice } ]
-
 let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   { pl0 = Player.make ~color:0;
     pl1 = Player.make ~color:1;
     pc0; pc1;
     turn_num = 1;
-    phase = idle_turn spawn;
-    map_items = initial_items }
+    phase = idle_turn { pos0 = (3, 3);
+                        pos1 = (6, 7) };
+    map_items = [];
+    next_id = 2 }
+  |> spawn_items [ Weapon Staff,  (3, 7);
+                   Weapon Rapier, (4, 0);
+                   Spell Fire,    (1, 1);
+                   Spell Ice,     (6, 0) ]
 
 (* events *)
 

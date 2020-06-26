@@ -87,7 +87,7 @@ module Make
         mutable hit_mark_tfs: Affine.t array }
 
     and entity_data =
-      { en_id: Entity.id;
+      { en_id: Entity.Id.t;
         en_tf: Affine.t;
         en_sprite_sx: int;
         en_sprite_sy: int;
