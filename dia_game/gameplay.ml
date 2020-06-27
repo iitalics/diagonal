@@ -146,19 +146,19 @@ let obs_occupied_cells obs =
              Pos.Tbl.add tbl ob_pos ob_id);
   tbl
 
-let spawn_obs obs next_id descs =
+let spawn_obs obs next_id typ pos_list =
   let occupied = obs |> obs_occupied_cells in
   let obs, id, rem_ids =
-    descs |> List.fold_left
-               (fun (obs, id, rem) (typ, pos) ->
-                 ({ ob_id = id;
-                    ob_typ = typ;
-                    ob_pos = pos } :: obs),
-                 (id + 1),
-                 (match Pos.Tbl.find_opt occupied pos with
-                  | None    -> rem
-                  | Some id -> rem |> Entity.Id_set.add id))
-               (obs, next_id, Entity.Id_set.empty)
+    pos_list |> List.fold_left
+                  (fun (obs, id, rem) pos ->
+                    ({ ob_id = id;
+                       ob_typ = typ;
+                       ob_pos = pos } :: obs),
+                    (id + 1),
+                    (match Pos.Tbl.find_opt occupied pos with
+                     | None    -> rem
+                     | Some id -> rem |> Entity.Id_set.add id))
+                  (obs, next_id, Entity.Id_set.empty)
   in
   let obs =
     obs |> List.filter
@@ -170,9 +170,9 @@ let spawn_obs obs next_id descs =
 let cast_spell obs id pl path =
   match pl |> Player.use_spell_cast with
   | None          -> obs, id, pl
-  | Some (s, pl') -> match path |> Path.knee with
-                     | None     -> obs,  id,  pl
-                     | Some pos -> let (obs', id') = [ s, pos ] |> spawn_obs obs id in
+  | Some (s, pl') -> match s |> Spell_type.cast_points path with
+                     | []       -> obs,  id,  pl
+                     | pos_list -> let (obs', id') = pos_list |> spawn_obs obs id s in
                                    obs', id', pl'
 
 let entity_of_ob { ob_id; ob_pos; ob_typ } =
@@ -289,12 +289,13 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
     [ Item_type.Weapon Staff,  (3, 7);
       Item_type.Weapon Rapier, (4, 0);
       Item_type.Spell Fire,    (1, 1);
+      Item_type.Spell Life,    (0, 1);
       Item_type.Spell Ice,     (6, 0) ]
     |> spawn_items map_items next_id
   in
   let map_obs, next_id =
-    List.init 4 (fun i -> Spell_type.Fire, (2 + i, 2))
-    |> spawn_obs map_obs next_id
+    List.init 4 (fun i -> (2 + i, 2))
+    |> spawn_obs map_obs next_id Spell_type.Fire
   in
   { turn_num = 1;
     phase = idle_turn { pos0 = (3, 3);
