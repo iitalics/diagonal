@@ -81,3 +81,17 @@ let knee { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
     Some(match axis with
          | X -> x0 + s_dis * x_sgn, y0
          | Y -> x0, y0 + s_dis * y_sgn)
+
+let straight { pos = (x0, y0); s_dis; axis; x_sgn; y_sgn; _ } =
+  List.init s_dis
+    (fun i ->
+      match axis with
+      | X -> x0 + i * x_sgn, y0
+      | Y -> x0, y0 + i * y_sgn)
+
+let diagonal { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn; } =
+  List.init d_dis
+    (fun i ->
+      match axis with
+      | X -> x0 + (s_dis + i) * x_sgn, y0 + i * y_sgn
+      | Y -> x0 + i * x_sgn, y0 + (s_dis + i) * y_sgn)

@@ -25,3 +25,5 @@ val is_null: t -> bool
 val num_points: t -> int
 val points: t -> (Pos.t * point_type) list
 val knee: t -> Pos.t option
+val straight: t -> Pos.t list
+val diagonal: t -> Pos.t list
