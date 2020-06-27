@@ -57,6 +57,11 @@ module List = struct
     in
     loop [] [] xys
 
+  let rec rev_map_append f xs ys =
+    match xs with
+    | []      -> ys
+    | x :: xs -> rev_map_append f xs (f x :: ys)
+
   include List
 end
 
