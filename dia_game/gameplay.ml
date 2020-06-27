@@ -139,14 +139,33 @@ let entity_of_item { it_id; it_pos; it_typ } =
 
 (* obstacles *)
 
+let obs_occupied_cells obs =
+  let tbl = Pos.Tbl.create (List.length obs * 2) in
+  obs |> List.iter
+           (fun { ob_pos; ob_id; _ } ->
+             Pos.Tbl.add tbl ob_pos ob_id);
+  tbl
+
 let spawn_obs obs next_id descs =
-  descs |> List.fold_left
-             (fun (obs, id) (typ, pos) ->
-               { ob_id = id;
-                 ob_typ = typ;
-                 ob_pos = pos } :: obs,
-               id + 1)
-             (obs, next_id)
+  let occupied = obs |> obs_occupied_cells in
+  let obs, id, rem_ids =
+    descs |> List.fold_left
+               (fun (obs, id, rem) (typ, pos) ->
+                 ({ ob_id = id;
+                    ob_typ = typ;
+                    ob_pos = pos } :: obs),
+                 (id + 1),
+                 (match Pos.Tbl.find_opt occupied pos with
+                  | None    -> rem
+                  | Some id -> rem |> Entity.Id_set.add id))
+               (obs, next_id, Entity.Id_set.empty)
+  in
+  let obs =
+    obs |> List.filter
+             (fun { ob_id; _ } ->
+               not @@ Entity.Id_set.mem ob_id rem_ids)
+  in
+  obs, id
 
 let cast_spell obs id pl path =
   match pl |> Player.use_spell_cast with
