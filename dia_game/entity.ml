@@ -3,6 +3,8 @@ module Id = struct
   let compare = Int.compare
 end
 
+module Id_set = Set.Make(Id)
+
 type typ =
   | Blob_idle of Player.t * Pos.t
   | Blob_moving of Player.t * Path.t
