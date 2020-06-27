@@ -148,12 +148,13 @@ let spawn_obs obs next_id descs =
                id + 1)
              (obs, next_id)
 
-let cast_spell path obs next_id spell =
-  match spell, Path.knee path with
-  | Some typ, Some pos ->
-     [ typ, pos ] |> spawn_obs obs next_id
-  | _, _ ->
-     obs, next_id
+let cast_spell obs id pl path =
+  match pl |> Player.use_spell_cast with
+  | None          -> obs, id, pl
+  | Some (s, pl') -> match path |> Path.knee with
+                     | None     -> obs,  id,  pl
+                     | Some pos -> let (obs', id') = [ s, pos ] |> spawn_obs obs id in
+                                   obs', id', pl'
 
 let entity_of_ob { ob_id; ob_pos; ob_typ } =
   Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos) }
@@ -190,12 +191,9 @@ let end_phase g =
                         path1 = Path.from_points ~src:pos1 ~tgt:pos1' } }
 
   | Moving { path0; path1 } ->
-     let { pl0; pl1; map_items; map_obs; next_id; _ } = g in
      (* cast spells *)
-     let s0, pl0 = pl0 |> Player.use_spell_cast
-     and s1, pl1 = pl1 |> Player.use_spell_cast in
-     let map_obs, next_id = s0 |> cast_spell path0 map_obs next_id in
-     let map_obs, next_id = s1 |> cast_spell path1 map_obs next_id in
+     let map_obs, next_id, pl0 = cast_spell g.map_obs g.next_id g.pl0 path0 in
+     let map_obs, next_id, pl1 = cast_spell map_obs   next_id   g.pl1 path1 in
      (* take damage *)
      let hits = collision_hits path0 path1 in
      let (dmg0, dmg1) = hits |> damage_of_hits pl0 pl1 in
@@ -205,7 +203,7 @@ let end_phase g =
                  player_collect_item g.map_items pos0
      and pl1 = pl1 |> Player.take_damage dmg0 |>
                  player_collect_item g.map_items pos1 in
-     let map_items = map_items |> pick_up_items [ pos0; pos1 ] in
+     let map_items = g.map_items |> pick_up_items [ pos0; pos1 ] in
      { g with
        pl0; pl1; map_items; map_obs; next_id;
        phase = Damage { hits; idle = { pos0; pos1 } } }

@@ -28,6 +28,6 @@ let remaining_casts pl =
 
 let use_spell_cast pl =
   match pl.spell, remaining_casts pl with
-  | None, _        -> None, pl
-  | Some s, Some 1 -> Some s, { pl with spell = None }
-  | Some s, _      -> Some s, { pl with casts = pl.casts + 1 }
+  | None, _        -> None
+  | Some s, Some 1 -> Some (s, { pl with spell = None })
+  | Some s, _      -> Some (s, { pl with casts = pl.casts + 1 })
