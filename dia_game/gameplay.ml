@@ -19,21 +19,9 @@ type t =
 and phase =
   | Main of { cu: Pos.t }
   | Moving of { time: float }
-  | Damage of { hits: hits }
+  | Damage of { atks: Attack.set }
   | Cast
   | Pick_up
-
-and hits =
-  { hits_player_0: hit list;
-    hits_player_1: hit list }
-
-and hit =
-  { hit_pos: Pos.t;
-    hit_type: hit_type }
-
-and hit_type =
-  | Crit
-  | Attk
 
 and item =
   { it_id: Entity.Id.t;
@@ -45,57 +33,12 @@ and ob =
     ob_pos: Pos.t;
     ob_typ: Spell_type.t }
 
-type point_type = Path.point_type
-
 (* attacks and damage *)
 
-let no_hits =
-  { hits_player_0 = [];
-    hits_player_1 = [] }
-
-let hit_cons0 h { hits_player_0; hits_player_1 } =
-  { hits_player_0 = h :: hits_player_0; hits_player_1 }
-
-let hit_cons1 h { hits_player_0; hits_player_1 } =
-  { hits_player_0; hits_player_1 = h :: hits_player_1 }
-
-let collision_hit_type (typ0: point_type) (typ1: point_type) =
-  match typ0, typ1 with
-  | Crit, Vuln -> `P0 Crit
-  | Vuln, Crit -> `P1 Crit
-  | Crit, Attk | Attk, Vuln -> `P0 Attk
-  | Attk, Crit | Vuln, Attk -> `P1 Attk
-  | Crit, Crit | Attk, Attk | Vuln, Vuln -> `No
-
-let collision_hits path0 path1 =
-  let compare (pos1, _) (pos2, _) = Pos.compare pos1 pos2 in
-  List.merge_fold ~compare
-    (fun acc _ -> acc)
-    (fun acc _ -> acc)
-    (fun acc (hit_pos, typ0) (_, typ1) ->
-      match collision_hit_type typ0 typ1 with
-      | `P0 hit_type -> hit_cons0 { hit_pos; hit_type } acc
-      | `P1 hit_type -> hit_cons1 { hit_pos; hit_type } acc
-      | `No          -> acc)
-    no_hits
-    (path0 |> Path.points |> List.sort compare)
-    (path1 |> Path.points |> List.sort compare)
-
-let hits g =
+let attacks g =
   match g.phase with
-  | Damage { hits; _ } -> hits
-  | Main _ | Moving _ | Cast | Pick_up -> no_hits
-
-let damage_of_hit ~player:Player.{ weapon; _ } =
-  function
-  | { hit_type = Crit; _ } ->
-     (weapon |> Weapon_type.atk) + (weapon |> Weapon_type.crit_bonus)
-  | { hit_type = Attk; _ } ->
-     (weapon |> Weapon_type.atk)
-
-let damage_of_hits pl0 pl1 hs =
-  (hs.hits_player_0 |> List.sum_by (damage_of_hit ~player:pl0),
-   hs.hits_player_1 |> List.sum_by (damage_of_hit ~player:pl1))
+  | Damage { atks } -> atks
+  | Main _ | Moving _ | Cast | Pick_up -> Attack.empty_set
 
 (* players *)
 
@@ -224,13 +167,13 @@ let goto_moving_phase pos0 pc0 pos1 pc1 cu =
              phase = Moving { time } }
 
 let goto_damage_phase path0 pl0 path1 pl1 =
-  let hits = collision_hits path0 path1 in
-  let (dmg0, dmg1) = hits |> damage_of_hits pl0 pl1 in
+  let atks = Attack.path_collision path0 path1 in
+  let (dmg0, dmg1) = atks |> Attack.damage_of_set pl0 pl1 in
   let pl0 = pl0 |> Player.take_damage dmg1
   and pl1 = pl1 |> Player.take_damage dmg0 in
   fun g -> { g with
              pl0; pl1;
-             phase = Damage { hits } }
+             phase = Damage { atks } }
 
 let goto_cast_phase path0 pl0 path1 pl1 map_obs next_id =
   let map_obs, next_id, pl0 = cast_spell map_obs next_id pl0 path0 in

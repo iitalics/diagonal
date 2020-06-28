@@ -1,3 +1,4 @@
+module Attack = Dia_game.Attack
 module Entity = Dia_game.Entity
 module Evt = View.Evt
 module Gameplay = Dia_game.Gameplay
@@ -83,8 +84,8 @@ module Make
         (* cursor, path *)
         cursor_tf: Affine.t;
         mutable path_data: path_data array;
-        mutable hit_marks: hit_type array;
-        mutable hit_mark_tfs: Affine.t array }
+        mutable atk_types: Attack.typ array;
+        mutable atk_tfs: Affine.t array }
 
     and entity_data =
       { en_id: Entity.Id.t;
@@ -107,9 +108,6 @@ module Make
         pa_type: Gameplay.path_type;
         pa_xs: int array;
         pa_ys: int array }
-
-    and hit_type =
-      Gameplay.hit_type
 
     (*** rendering ***)
 
@@ -245,19 +243,19 @@ module Make
               ~x:(-32) ~y:(-32) ~t:tf
               ~sx:704 ~sy:0 ~w:64 ~h:64
 
-    let make_hit_mark_array base_tf (h: Gameplay.hits) =
+    let make_atk_arrays base_tf (atks: Attack.set) =
       let tfs, mks =
-        (h.hits_player_0 @ h.hits_player_1)
+        (atks.player_0 @ atks.player_1)
         |> List.rev_map
-             (fun Gameplay.{ hit_pos; hit_type } ->
+             (fun Attack.{ typ; pos } ->
                let tf = base_tf |> Affine.extend in
-               tf |> translate_to_grid_center hit_pos;
-               (tf, hit_type))
+               tf |> translate_to_grid_center pos;
+               (tf, typ))
         |> List.rev_split
       in
       Array.of_list mks, Array.of_list tfs
 
-    let render_hit_mark ~assets ~cx i (typ: hit_type) tf =
+    let render_hit_mark ~assets ~cx i (typ: Attack.typ) tf =
       let sx = match typ with Attk -> 704 | Crit -> 768 in
       let sy = 64 in
       cx |> Ctxt.image assets.sprites
@@ -278,13 +276,13 @@ module Make
       end
 
     let render_grid_elements_above ~cx
-          { assets; cursor_tf; hit_marks; hit_mark_tfs; _ }
+          { assets; cursor_tf; atk_types; atk_tfs; _ }
       =
       begin
         cursor_tf |> render_cursor ~assets ~cx;
-        hit_marks |> Array.iteri
+        atk_types |> Array.iteri
                        (fun i typ ->
-                         hit_mark_tfs.(i) |> render_hit_mark ~assets ~cx i typ);
+                         atk_tfs.(i) |> render_hit_mark ~assets ~cx i typ);
       end
 
     (* entities *)
@@ -388,9 +386,9 @@ module Make
       (* cursor *)
       v.cursor_tf |> update_cursor_tf (game |> Gameplay.cursor);
       (* hit marks *)
-      let hit_mks, hit_tfs = game |> Gameplay.hits |> make_hit_mark_array v.map_tf in
-      v.hit_marks <- hit_mks;
-      v.hit_mark_tfs <- hit_tfs;
+      let atk_types, atk_tfs = game |> Gameplay.attacks |> make_atk_arrays v.map_tf in
+      v.atk_types <- atk_types;
+      v.atk_tfs <- atk_tfs;
       (* paths *)
       v.path_data <- game |> Gameplay.paths |> make_path_data_array v.map_tf;
       (* HUD *)
@@ -454,8 +452,8 @@ module Make
           (* cursor, path *)
           cursor_tf = map_tf |> Affine.extend;
           path_data = [||];
-          hit_marks = [||];
-          hit_mark_tfs = [||] }
+          atk_types = [||];
+          atk_tfs = [||] }
       in
       v0 |> set_game_data 0. game;
       v0
