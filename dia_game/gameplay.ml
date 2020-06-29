@@ -31,7 +31,8 @@ and item =
 and ob =
   { ob_id: Entity.Id.t;
     ob_pos: Pos.t;
-    ob_typ: Spell_type.t }
+    ob_typ: Spell_type.t;
+    ob_turns_left: int }
 
 (* attacks and damage *)
 
@@ -86,6 +87,8 @@ let entity_of_item { it_id; it_pos; it_typ } =
 
 (* obstacles *)
 
+let default_ob_turns = 3
+
 let obs_occupied_cells obs =
   let tbl = Pos.Tbl.create (List.length obs * 2) in
   obs |> List.iter
@@ -93,14 +96,24 @@ let obs_occupied_cells obs =
              Pos.Tbl.add tbl ob_pos ob_id);
   tbl
 
-let spawn_obs obs next_id typ pos_list =
+let decay_obs obs =
+  obs |> List.rev_filter_map
+           (fun ob ->
+             let tl = ob.ob_turns_left - 1 in
+             if tl <= 0 then
+               None
+             else
+               Some { ob with ob_turns_left = tl })
+
+let spawn_obs obs next_id typ turns pos_list =
   let occupied = obs |> obs_occupied_cells in
   let obs, id, rem_ids =
     pos_list |> List.fold_left
                   (fun (obs, id, rem) pos ->
                     ({ ob_id = id;
+                       ob_pos = pos;
                        ob_typ = typ;
-                       ob_pos = pos } :: obs),
+                       ob_turns_left = turns } :: obs),
                     (id + 1),
                     (match Pos.Tbl.find_opt occupied pos with
                      | None    -> rem
@@ -119,10 +132,12 @@ let cast_spell obs id pl path =
   | None          -> obs, id, pl
   | Some (s, pl') -> match s |> Spell_type.cast_points path with
                      | []       -> obs,  id,  pl
-                     | pos_list -> let (obs', id') = pos_list |> spawn_obs obs id s in
+                     | pos_list -> let (obs', id') =
+                                     pos_list |> spawn_obs obs id s default_ob_turns
+                                   in
                                    obs', id', pl'
 
-let entity_of_ob { ob_id; ob_pos; ob_typ } =
+let entity_of_ob { ob_id; ob_pos; ob_typ; _ } =
   Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos) }
 
 (* entities *)
@@ -159,7 +174,7 @@ let goto_moving_phase pos0 pc0 pos1 pc1 cu =
   let pos1', pc1 = pc1 |> Player_controller.pick_move
                             { pos = pos1; opp_pos = pos0; cursor = None } in
   let path0 = Path.from_points ~src:pos0 ~tgt:pos0'
-  and path1 = Path.from_points ~src:pos1 ~tgt:pos1'  in
+  and path1 = Path.from_points ~src:pos1 ~tgt:pos1' in
   let time = max (Path.length path0 /. Rules.move_vel)
                (Path.length path1 /. Rules.move_vel) in
   fun g -> { g with
@@ -176,6 +191,7 @@ let goto_damage_phase path0 pl0 path1 pl1 =
              phase = Damage { atks } }
 
 let goto_cast_phase path0 pl0 path1 pl1 map_obs next_id =
+  let map_obs = decay_obs map_obs in
   let map_obs, next_id, pl0 = cast_spell map_obs next_id pl0 path0 in
   let map_obs, next_id, pl1 = cast_spell map_obs next_id pl1 path1 in
   fun g -> { g with
@@ -288,7 +304,7 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   in
   let map_obs, next_id =
     List.init 4 (fun i -> (2 + i, 2))
-    |> spawn_obs map_obs next_id Spell_type.Fire
+    |> spawn_obs map_obs next_id Spell_type.Fire 2
   in
   let path0 = Path.null ~src:(3, 3)
   and path1 = Path.null ~src:(6, 7) in
