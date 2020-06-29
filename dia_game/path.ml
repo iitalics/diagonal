@@ -74,6 +74,9 @@ let point { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } i =
 let points pa =
   List.init (num_points pa) (point pa)
 
+let points_mem p pa =
+  pa |> points |> List.exists (fun (p', _) -> Pos.equal p p')
+
 let knee { pos = (x0, y0); s_dis; d_dis; axis; x_sgn; y_sgn } =
   if s_dis = 0 || d_dis = 0 then
     None
