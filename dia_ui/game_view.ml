@@ -258,7 +258,10 @@ module Make
       Array.of_list mks, Array.of_list tfs
 
     let render_hit_mark ~assets ~cx i (typ: Attack.typ) tf =
-      let sx = match typ with Attk -> 704 | Crit -> 768 in
+      let sx = match typ with
+        | Attk | Burn -> 704
+        | Crit        -> 768
+      in
       let sy = 64 in
       cx |> Ctxt.image assets.sprites
               ~x:(-32) ~y:(-32) ~t:tf

@@ -12,3 +12,5 @@ let cast_points path = function
   | Fire -> path |> Path.diagonal
   | Ice  -> path |> Path.straight
   | Life -> path |> Path.knee |> Option.to_list
+
+let burn_atk = 1
