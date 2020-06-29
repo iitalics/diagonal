@@ -184,8 +184,8 @@ let goto_moving_phase pos0 pc0 pos1 pc1 cu =
 let goto_damage_phase path0 pl0 path1 pl1 =
   let atks = Attack.path_collision path0 path1 in
   let (dmg0, dmg1) = atks |> Attack.damage_of_set pl0 pl1 in
-  let pl0 = pl0 |> Player.take_damage dmg1
-  and pl1 = pl1 |> Player.take_damage dmg0 in
+  let pl0 = pl0 |> Player.take_damage dmg0
+  and pl1 = pl1 |> Player.take_damage dmg1 in
   fun g -> { g with
              pl0; pl1;
              phase = Damage { atks } }
