@@ -93,7 +93,8 @@ module Make
         en_sprite_sx: int;
         en_sprite_sy: int;
         en_pos: Pos.t;
-        en_anim: entity_anim; mutable en_z: float }
+        en_anim: entity_anim;
+        mutable en_z: float }
 
     and entity_anim =
       | No_anim
@@ -102,6 +103,7 @@ module Make
             s_dis: float; d_dis: float; len: float;
             x_sgn: float; y_sgn: float;
             axis: Path.axis }
+      | Decaying
 
     and path_data =
       { pa_tf: Affine.t;
@@ -301,7 +303,7 @@ module Make
                   axis  = pa.axis }
 
     let cell_offset_of_entity_anim time = function
-      | No_anim -> (0., 0.)
+      | No_anim | Decaying -> (0., 0.)
       | Path_anim { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis; _ } ->
          let d = dis0 +. time *. vel in
          let d' = (d -. s_dis) *. sqrt2_2 in
@@ -326,17 +328,34 @@ module Make
     let make_entity_data time0 base_tf (en: Entity.t) =
       let anim, pos, (sx, sy) =
         match en.typ with
-        | Item (typ, pos)        -> No_anim, pos, (typ |> sprite_clip_of_item)
-        | Obstacle (typ, pos)    -> No_anim, pos, (typ |> sprite_clip_of_obstacle)
-        | Blob_idle (pl, pos)    -> No_anim, pos, (pl |> sprite_clip_of_player)
-        | Blob_moving (pl, path) -> (path |> entity_anim_of_path time0),
-                                    (path |> Path.source),
-                                    (pl |> sprite_clip_of_player)
+        | Item (typ, pos) ->
+           No_anim, pos, (typ |> sprite_clip_of_item)
+        | Obstacle (typ, pos, decay) ->
+           (if decay then Decaying else No_anim),
+           pos,
+           (typ |> sprite_clip_of_obstacle)
+        | Blob_idle (pl, pos) ->
+           No_anim, pos, (pl |> sprite_clip_of_player)
+        | Blob_moving (pl, path) ->
+           (path |> entity_anim_of_path time0),
+           (path |> Path.source),
+           (pl |> sprite_clip_of_player)
       in
       { en_id = en.id;
         en_tf = base_tf |> Affine.extend;
         en_sprite_sx = sx; en_sprite_sy = sy;
         en_pos = pos; en_anim = anim; en_z = 0. }
+
+    let decay_is_visible time =
+      let (dt, _) = Float.modf time in
+      dt < 0.5
+
+    let update_entity_anim_tf time (a: entity_anim) tf =
+      match a with
+      | No_anim | Path_anim _ -> ()
+      | Decaying ->
+         if not @@ decay_is_visible time then
+           tf |> Affine.scale 0. 0.
 
     let update_entity_tf time (e: entity_data) =
       let (x0, y0) = e.en_pos in
@@ -344,6 +363,7 @@ module Make
       let x, y = float_of_int x0 +. dx, float_of_int y0 +. dy in
       e.en_tf |> Affine.reset;
       e.en_tf |> translate_to_grid_center_fl (x, y);
+      e.en_tf |> update_entity_anim_tf time e.en_anim;
       e.en_z <- y
 
     let render_entity ~assets ~cx { en_tf; en_sprite_sx; en_sprite_sy; _ } =

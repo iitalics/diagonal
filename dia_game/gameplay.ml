@@ -137,8 +137,8 @@ let cast_spell obs id pl path =
                                    in
                                    obs', id', pl'
 
-let entity_of_ob { ob_id; ob_pos; ob_typ; _ } =
-  Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos) }
+let entity_of_ob { ob_id; ob_pos; ob_typ; ob_turns_left } =
+  Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos, ob_turns_left = 1) }
 
 (* entities *)
 
