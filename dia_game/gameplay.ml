@@ -34,13 +34,6 @@ and ob =
     ob_typ: Spell_type.t;
     ob_turns_left: int }
 
-(* attacks and damage *)
-
-let attacks g =
-  match g.phase with
-  | Damage { atks } -> atks
-  | Main _ | Moving _ | Cast | Pick_up -> Attack.empty_set
-
 (* players *)
 
 let player_0 g = g.pl0
@@ -147,6 +140,26 @@ let entities g =
   @@ List.rev_map_append entity_of_item g.map_items
   @@ player_entities_of_phase g.pl0 g.path0 g.pl1 g.path1 g.phase
 
+(* attacks and damage *)
+
+let burn_attacks_on_path obs path =
+  obs |> List.rev_filter_map
+           (function
+            | { ob_typ = Fire; ob_pos; _ }
+                 when path |> Path.points_mem ob_pos
+              -> Some Attack.{ pos = ob_pos; typ = Burn }
+            | _
+              -> None)
+
+let burn_attacks obs path0 path1 =
+  Attack.{ player_0 = path0 |> burn_attacks_on_path obs;
+           player_1 = path1 |> burn_attacks_on_path obs }
+
+let attacks g =
+  match g.phase with
+  | Damage { atks } -> atks
+  | Main _ | Moving _ | Cast | Pick_up -> Attack.empty_set
+
 (* phases, turns *)
 
 let phase_duration g = match g.phase with
@@ -181,8 +194,12 @@ let goto_moving_phase pos0 pc0 pos1 pc1 cu =
              pc0; pc1; path0; path1;
              phase = Moving { time } }
 
-let goto_damage_phase path0 pl0 path1 pl1 =
-  let atks = Attack.path_collision path0 path1 in
+let goto_damage_phase path0 pl0 path1 pl1 map_obs =
+  let atks =
+    Attack.set_concat
+      [ Attack.path_collision path0 path1;
+        burn_attacks map_obs path0 path1 ]
+  in
   let (dmg0, dmg1) = atks |> Attack.damage_of_set pl0 pl1 in
   let pl0 = pl0 |> Player.take_damage dmg0
   and pl1 = pl1 |> Player.take_damage dmg1 in
@@ -218,6 +235,7 @@ let end_phase g =
      g |> goto_damage_phase
             g.path0 g.pl0
             g.path1 g.pl1
+            g.map_obs
 
   | Damage _ ->
      g |> goto_cast_phase
