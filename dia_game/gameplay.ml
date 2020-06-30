@@ -64,13 +64,15 @@ let player_collect_item items pl =
 let player_entities_of_phase pl0 pl1 phase =
   let typ0, typ1 =
     match phase with
-    (* TODO: special animation for "bouncing" phase *)
-    | Main _ | Damage _ | Bouncing _ | Cast | Pick_up ->
+    | Main _ | Damage _ | Cast | Pick_up ->
        Entity.Blob_idle (pl0.pl_stats, pl0.pl_pos),
        Entity.Blob_idle (pl1.pl_stats, pl1.pl_pos)
     | Moving { paths = { path0; path1; _ }; _ } ->
        Entity.Blob_moving (pl0.pl_stats, path0),
        Entity.Blob_moving (pl1.pl_stats, path1)
+    | Bouncing { orig_pos; _ } ->
+       Entity.Blob_bounce (pl0.pl_stats, orig_pos, pl0.pl_pos),
+       Entity.Blob_bounce (pl1.pl_stats, orig_pos, pl1.pl_pos)
   in
   [ Entity.{ id = 0; typ = typ0 };
     Entity.{ id = 1; typ = typ1 } ]
@@ -190,7 +192,7 @@ let phase_duration g =
   | Damage _        -> 1.0
   | Cast            -> 1.0
   | Pick_up         -> 1.0
-  | Bouncing _      -> 0.5
+  | Bouncing _      -> Rules.bounce_time
   | Moving { paths = { path0; path1 }; _ } ->
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)

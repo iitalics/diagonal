@@ -103,7 +103,11 @@ module Make
             s_dis: float; d_dis: float; len: float;
             x_sgn: float; y_sgn: float;
             axis: Path.axis }
-      | Decaying
+      | Lerp of
+          (* dx(t) = dx0 + x_vel * t *)
+          { dx0: float; x_vel: float;
+            dy0: float; y_vel: float }
+      | Decay_blinking
 
     and path_data =
       { pa_tf: Affine.t;
@@ -296,7 +300,7 @@ module Make
 
     let sqrt2_2 = 0.7071067 (* ~ sqrt(2)/2 *)
 
-    let entity_anim_of_path time0 (pa: Path.t) =
+    let path_entity_anim time0 (pa: Path.t) =
       let vel = Rules.move_vel in
       Path_anim { vel;
                   dis0  = ~-. time0 *. vel;
@@ -307,8 +311,20 @@ module Make
                   y_sgn = float_of_int pa.y_sgn;
                   axis  = pa.axis }
 
+    let lerp_entity_anim time0 dt dx dy =
+      let x_vel = dx /. dt
+      and y_vel = dy /. dt in
+      (* dx0 + x_vel * t0        = 0
+         dx0 + x_vel * (t0 + dt) = dx *)
+      Lerp { x_vel; y_vel;
+             dx0 = ~-. x_vel *. time0;
+             dy0 = ~-. y_vel *. time0 }
+
     let cell_offset_of_entity_anim time = function
-      | No_anim | Decaying -> (0., 0.)
+      | No_anim | Decay_blinking -> (0., 0.)
+      | Lerp { dx0; dy0; x_vel; y_vel } ->
+         (dx0 +. x_vel *. time,
+          dy0 +. y_vel *. time)
       | Path_anim { dis0; vel; s_dis; d_dis; len; x_sgn; y_sgn; axis; _ } ->
          let d = dis0 +. time *. vel in
          let d' = (d -. s_dis) *. sqrt2_2 in
@@ -331,19 +347,25 @@ module Make
       (416 + 64 * Spell_type.to_int s, 128)
 
     let make_entity_data time0 base_tf (en: Entity.t) =
-      let anim, pos, (sx, sy) =
+      let pos, anim, (sx, sy) =
         match en.typ with
         | Item (typ, pos) ->
-           No_anim, pos, (typ |> sprite_clip_of_item)
+           pos, No_anim, (typ |> sprite_clip_of_item)
         | Obstacle (typ, pos, decay) ->
-           (if decay then Decaying else No_anim),
            pos,
+           (if decay then Decay_blinking else No_anim),
            (typ |> sprite_clip_of_obstacle)
         | Blob_idle (pl, pos) ->
-           No_anim, pos, (pl |> sprite_clip_of_player)
+           pos, No_anim, (pl |> sprite_clip_of_player)
         | Blob_moving (pl, path) ->
-           (path |> entity_anim_of_path time0),
            (path |> Path.source),
+           (path |> path_entity_anim time0),
+           (pl |> sprite_clip_of_player)
+        | Blob_bounce (pl, (x0, y0), (x1, y1)) ->
+           (x0, y0),
+           (lerp_entity_anim time0 Rules.bounce_time
+              (float_of_int (x1 - x0))
+              (float_of_int (y1 - y0))),
            (pl |> sprite_clip_of_player)
       in
       { en_id = en.id;
@@ -357,8 +379,8 @@ module Make
 
     let update_entity_anim_tf time (a: entity_anim) tf =
       match a with
-      | No_anim | Path_anim _ -> ()
-      | Decaying ->
+      | No_anim | Path_anim _ | Lerp _ -> ()
+      | Decay_blinking ->
          if not @@ decay_is_visible time then
            tf |> Affine.scale 0. 0.
 

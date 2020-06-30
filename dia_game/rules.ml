@@ -2,5 +2,6 @@ let grid_cols = 8        (* unit: cell *)
 
 let turn_duration = 2.   (* unit: sec *)
 let move_vel = 4.2       (* unit: cell/sec *)
+let bounce_time = 0.5    (* unit: sec *)
 
 let max_hp = 16          (* unit: HP *)
