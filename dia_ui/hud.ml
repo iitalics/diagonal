@@ -211,8 +211,9 @@ module Make
       player.pl_hp_text_y <- pl_hp_text_y0 - hp_mes_h / 2;
       (* hp bar *)
       let _, _, hp_x1, _ =
-        hpbar_coords
-          (float_of_int pl.hp /. float_of_int Rules.max_hp)
+        (float_of_int pl.hp /. float_of_int Rules.max_hp)
+        |> Util.clamp 0. 1.
+        |> hpbar_coords
       in
       let (fill_xs, _) = player.pl_hpbar_fi in
       fill_xs.(1) <- hp_x1;
