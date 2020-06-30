@@ -1,7 +1,8 @@
 open Dia_util
 
 type t =
-  { (* turn / phase *)
+  { rng: Prng.t;
+    (* turn / phase *)
     turn_num: int;
     phase: phase;
     (* players *)
@@ -256,17 +257,17 @@ let bounce_positions (x0, y0) =
          else
            Some((x, y)))
 
-let maybe_goto_bouncing_phase pl0 pl1 paths prng =
+let maybe_goto_bouncing_phase pl0 pl1 paths rng =
   if not @@ Pos.equal pl0.pl_pos pl1.pl_pos then
     None
   else
     let orig_pos = pl0.pl_pos in
     let candidates = bounce_positions orig_pos |> Array.of_list in
-    prng |> Prng.rand_shuffle candidates;
+    let rng = rng |> Prng.copy in rng |> Prng.rand_shuffle candidates;
     let pl0 = { pl0 with pl_pos = candidates.(0) }
     and pl1 = { pl1 with pl_pos = candidates.(1) } in
     Some(fun g -> { g with
-                    pl0; pl1;
+                    rng; pl0; pl1;
                     phase = Bouncing { paths; orig_pos } })
 
 let goto_damage_phase pl0 pl1 paths map_obs =
@@ -311,9 +312,8 @@ let end_phase g =
             g.pl0 g.pl1 g.map_obs cu
 
   | Moving { paths; _ } ->
-     let prng = Prng.make ~seed:12345 in
      g |> Option.value
-            (maybe_goto_bouncing_phase g.pl0 g.pl1 paths prng)
+            (maybe_goto_bouncing_phase g.pl0 g.pl1 paths g.rng)
             ~default:(goto_damage_phase g.pl0 g.pl1 paths g.map_obs)
 
   | Bouncing { paths; _ } ->
@@ -406,7 +406,8 @@ let make ~player_ctrl_0:ctl0 ~player_ctrl_1:ctl1 =
   and pl1 = { pl_stats = Player.make ~color:1;
               pl_pos = (6, 7);
               pl_ctl = ctl1 } in
-  { turn_num = 1;
+  { rng = Prng.make ~seed:123456;
+    turn_num = 1;
     phase = main_phase pl0 pl1;
     pl0; pl1;
     next_id;
