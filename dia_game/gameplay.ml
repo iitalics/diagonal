@@ -130,6 +130,15 @@ let cast_spell obs id pl path =
                                    in
                                    obs', id', pl'
 
+let attacks_from_obs typ atk_typ path obs =
+  obs |> List.rev_filter_map
+           (function
+            | { ob_typ; ob_pos; _ }
+                 when ob_typ = typ && path |> Path.points_mem ob_pos
+              -> Some Attack.{ pos = ob_pos; typ = atk_typ }
+            | _
+              -> None)
+
 let entity_of_ob { ob_id; ob_pos; ob_typ; ob_turns_left } =
   Entity.{ id = ob_id; typ = Obstacle (ob_typ, ob_pos, ob_turns_left = 1) }
 
@@ -141,15 +150,6 @@ let entities g =
   @@ player_entities_of_phase g.pl0 g.path0 g.pl1 g.path1 g.phase
 
 (* attacks and damage *)
-
-let attacks_from_obs typ atk_typ path obs =
-  obs |> List.rev_filter_map
-           (function
-            | { ob_typ; ob_pos; _ }
-                 when ob_typ = typ && path |> Path.points_mem ob_pos
-              -> Some Attack.{ pos = ob_pos; typ = atk_typ }
-            | _
-              -> None)
 
 let burns obs path0 path1 =
   Attack.{ player_0 = obs |> attacks_from_obs Fire Burn path0;
@@ -185,13 +185,29 @@ let goto_main_phase pos0 pos1 turn_num =
              path0; path1; turn_num;
              phase = main_phase path0 path1 }
 
-let goto_moving_phase pos0 pc0 pos1 pc1 cu =
+let path_collide_with_ice obs path =
+  let src = path |> Path.source in
+  List.fold_left
+    (fun path -> function
+      | { ob_typ = Ice; ob_pos = pos; _ }
+           when not (Pos.equal pos src) &&
+                  (path |> Path.points_mem pos)
+        ->
+         Path.from_points ~src ~tgt:pos
+      | _
+        -> path)
+    path
+    obs
+
+let goto_moving_phase pos0 pc0 pos1 pc1 map_obs cu =
   let pos0', pc0 = pc0 |> Player_controller.pick_move
                             { pos = pos0; opp_pos = pos1; cursor = Some cu } in
   let pos1', pc1 = pc1 |> Player_controller.pick_move
                             { pos = pos1; opp_pos = pos0; cursor = None } in
   let path0 = Path.from_points ~src:pos0 ~tgt:pos0'
   and path1 = Path.from_points ~src:pos1 ~tgt:pos1' in
+  let path0 = path0 |> path_collide_with_ice map_obs
+  and path1 = path1 |> path_collide_with_ice map_obs in
   let time = max (Path.length path0 /. Rules.move_vel)
                (Path.length path1 /. Rules.move_vel) in
   fun g -> { g with
@@ -234,6 +250,7 @@ let end_phase g =
      g |> goto_moving_phase
             (g.path0 |> Path.source) g.pc0
             (g.path1 |> Path.source) g.pc1
+            g.map_obs
             cu
 
   | Moving _ ->
@@ -327,9 +344,9 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
   in
   let map_obs, next_id =
     List.init 4 (fun i -> (2 + i, 2))
-    |> spawn_obs map_obs next_id Spell_type.Fire 2
+    |> spawn_obs map_obs next_id Spell_type.Ice 2
   in
-  let path0 = Path.null ~src:(3, 3)
+  let path0 = Path.null ~src:(3, 5)
   and path1 = Path.null ~src:(6, 7) in
   { turn_num = 1;
     phase = main_phase path0 path1;
