@@ -18,7 +18,7 @@ type t =
 
 and phase =
   | Main of { cu: Pos.t }
-  | Moving of { time: float }
+  | Moving of { time: float; int_path0: Path.t; int_path1: Path.t }
   | Damage of { atks: Attack.set }
   | Cast
   | Pick_up
@@ -171,7 +171,7 @@ let phase_duration g = match g.phase with
   | Damage _        -> 1.
   | Cast            -> 1.
   | Pick_up         -> 1.
-  | Moving { time } -> time
+  | Moving { time; _ } -> time
 
 let main_phase path0 path1 =
   ignore path1;
@@ -204,15 +204,15 @@ let goto_moving_phase pos0 pc0 pos1 pc1 map_obs cu =
                             { pos = pos0; opp_pos = pos1; cursor = Some cu } in
   let pos1', pc1 = pc1 |> Player_controller.pick_move
                             { pos = pos1; opp_pos = pos0; cursor = None } in
-  let path0 = Path.from_points ~src:pos0 ~tgt:pos0'
-  and path1 = Path.from_points ~src:pos1 ~tgt:pos1' in
-  let path0 = path0 |> path_collide_with_ice map_obs
-  and path1 = path1 |> path_collide_with_ice map_obs in
+  let int_path0 = Path.from_points ~src:pos0 ~tgt:pos0'
+  and int_path1 = Path.from_points ~src:pos1 ~tgt:pos1' in
+  let path0 = int_path0 |> path_collide_with_ice map_obs
+  and path1 = int_path1 |> path_collide_with_ice map_obs in
   let time = max (Path.length path0 /. Rules.move_vel)
                (Path.length path1 /. Rules.move_vel) in
   fun g -> { g with
              pc0; pc1; path0; path1;
-             phase = Moving { time } }
+             phase = Moving { time; int_path0; int_path1 } }
 
 let goto_damage_phase path0 pl0 path1 pl1 map_obs =
   let atks =
@@ -296,9 +296,9 @@ let paths g =
   | Main { cu } ->
      let pos0 = g.path0 |> Path.target in
      [ Path.from_points ~src:pos0 ~tgt:cu, Select_path ]
-  | Moving _ ->
-     [ (g.path0, Player_path);
-       (g.path1, Player_path) ]
+  | Moving { int_path0; int_path1; _ } ->
+     [ (int_path0, Player_path);
+       (int_path1, Player_path) ]
   | Damage _ | Cast | Pick_up ->
      []
 
