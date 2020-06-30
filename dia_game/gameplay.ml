@@ -5,23 +5,33 @@ type t =
     turn_num: int;
     phase: phase;
     (* players *)
-    pl0: Player.t;
-    pl1: Player.t;
-    path0: Path.t;
-    path1: Path.t;
-    pc0: Player_controller.t;
-    pc1: Player_controller.t;
+    pl0: player;
+    pl1: player;
     (* map entities *)
     next_id: int;
     map_items: item list;
     map_obs: ob list }
 
 and phase =
-  | Main of { cu: Pos.t }
-  | Moving of { time: float; int_path0: Path.t; int_path1: Path.t }
-  | Damage of { atks: Attack.set }
+  | Main of
+      { cu: Pos.t }
+  | Moving of
+      { paths: paths;
+        int_paths: paths }
+  | Damage of
+      { paths: paths;
+        atks: Attack.set }
   | Cast
   | Pick_up
+
+and paths =
+  { path0: Path.t;
+    path1: Path.t }
+
+and player =
+  { pl_stats: Player.t;
+    pl_pos: Pos.t;
+    pl_ctl: Player_controller.t }
 
 and item =
   { it_id: Entity.Id.t;
@@ -36,35 +46,37 @@ and ob =
 
 (* players *)
 
-let player_0 g = g.pl0
-let player_1 g = g.pl1
+let player_0 g = g.pl0.pl_stats
+let player_1 g = g.pl1.pl_stats
 
-let player_collect_item items pos pl =
-  match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pos it_pos) with
+let player_collect_item items pl =
+  let { pl_pos; pl_stats; _ } = pl in
+  match items |> List.find_opt (fun { it_pos; _ } -> Pos.equal pl_pos it_pos) with
   | Some { it_typ; _ } ->
-     pl |> Player.pick_up it_typ
+     { pl with pl_stats = pl_stats |> Player.pick_up it_typ }
   | None ->
      pl
 
-let player_entities_of_phase pl0 path0 pl1 path1 phase =
+let player_entities_of_phase pl0 pl1 phase =
   let typ0, typ1 =
     match phase with
     | Main _ | Damage _ | Cast | Pick_up ->
-       Entity.Blob_idle (pl0, path0 |> Path.target),
-       Entity.Blob_idle (pl1, path1 |> Path.target)
-    | Moving _ ->
-       Entity.Blob_moving (pl0, path0),
-       Entity.Blob_moving (pl1, path1)
+       Entity.Blob_idle (pl0.pl_stats, pl0.pl_pos),
+       Entity.Blob_idle (pl1.pl_stats, pl1.pl_pos)
+    | Moving { paths = { path0; path1; _ }; _ } ->
+       Entity.Blob_moving (pl0.pl_stats, path0),
+       Entity.Blob_moving (pl1.pl_stats, path1)
   in
   [ Entity.{ id = 0; typ = typ0 };
     Entity.{ id = 1; typ = typ1 } ]
 
 (* items *)
 
-let pick_up_items pick_up items =
+let pick_up_items pl0 pl1 items =
   items |> List.filter
              (fun { it_pos; _ } ->
-               not (pick_up |> List.exists (Pos.equal it_pos) ))
+               not (Pos.equal pl0.pl_pos it_pos
+                    || Pos.equal pl1.pl_pos it_pos))
 
 let spawn_items items next_id descs =
   descs |> List.fold_left
@@ -121,14 +133,15 @@ let spawn_obs obs next_id typ turns pos_list =
   obs, id
 
 let cast_spell obs id pl path =
-  match pl |> Player.use_spell_cast with
-  | None          -> obs, id, pl
-  | Some (s, pl') -> match s |> Spell_type.cast_points path with
-                     | []       -> obs,  id,  pl
-                     | pos_list -> let (obs', id') =
-                                     pos_list |> spawn_obs obs id s default_ob_turns
-                                   in
-                                   obs', id', pl'
+  match pl.pl_stats |> Player.use_spell_cast with
+  | None -> obs, id, pl
+  | Some (s, pl_stats') ->
+     match s |> Spell_type.cast_points path with
+     | []       -> obs,  id,  pl
+     | pos_list -> let (obs', id') =
+                     pos_list |> spawn_obs obs id s default_ob_turns
+                   in
+                   obs', id', { pl with pl_stats = pl_stats' }
 
 let attacks_from_obs typ atk_typ path obs =
   obs |> List.rev_filter_map
@@ -147,7 +160,7 @@ let entity_of_ob { ob_id; ob_pos; ob_typ; ob_turns_left } =
 let entities g =
   List.rev_map_append entity_of_ob g.map_obs
   @@ List.rev_map_append entity_of_item g.map_items
-  @@ player_entities_of_phase g.pl0 g.path0 g.pl1 g.path1 g.phase
+  @@ player_entities_of_phase g.pl0 g.pl1 g.phase
 
 (* attacks and damage *)
 
@@ -161,29 +174,30 @@ let heals obs path0 path1 =
 
 let attacks g =
   match g.phase with
-  | Damage { atks } -> atks
+  | Damage { atks; _ } -> atks
   | Main _ | Moving _ | Cast | Pick_up -> Attack.empty_set
 
 (* phases, turns *)
 
-let phase_duration g = match g.phase with
+let phase_duration g =
+  match g.phase with
   | Main _          -> Rules.turn_duration
   | Damage _        -> 1.
   | Cast            -> 1.
   | Pick_up         -> 1.
-  | Moving { time; _ } -> time
+  | Moving { paths = { path0; path1 }; _ } ->
+     max (Path.length path0 /. Rules.move_vel)
+       (Path.length path1 /. Rules.move_vel)
 
-let main_phase path0 path1 =
-  ignore path1;
-  Main { cu = path0 |> Path.target }
+let main_phase pl0 pl1 =
+  ignore pl1;
+  Main { cu = pl0.pl_pos }
 
-let goto_main_phase pos0 pos1 turn_num =
-  let path0 = Path.null ~src:pos0
-  and path1 = Path.null ~src:pos1
-  and turn_num = turn_num + 1 in
+let goto_main_phase pl0 pl1 turn_num =
+  let turn_num = turn_num + 1 in
   fun g -> { g with
-             path0; path1; turn_num;
-             phase = main_phase path0 path1 }
+             turn_num;
+             phase = main_phase pl0 pl1 }
 
 let path_collide_with_ice obs path =
   let src = path |> Path.source in
@@ -199,47 +213,60 @@ let path_collide_with_ice obs path =
     path
     obs
 
-let goto_moving_phase pos0 pc0 pos1 pc1 map_obs cu =
-  let pos0', pc0 = pc0 |> Player_controller.pick_move
-                            { pos = pos0; opp_pos = pos1; cursor = Some cu } in
-  let pos1', pc1 = pc1 |> Player_controller.pick_move
-                            { pos = pos1; opp_pos = pos0; cursor = None } in
-  let int_path0 = Path.from_points ~src:pos0 ~tgt:pos0'
-  and int_path1 = Path.from_points ~src:pos1 ~tgt:pos1' in
-  let path0 = int_path0 |> path_collide_with_ice map_obs
-  and path1 = int_path1 |> path_collide_with_ice map_obs in
-  let time = max (Path.length path0 /. Rules.move_vel)
-               (Path.length path1 /. Rules.move_vel) in
+let goto_moving_phase pl0 pl1 map_obs cu =
+  (* move via controllers *)
+  let pos0, pos1 = pl0.pl_pos, pl1.pl_pos in
+  let pos0', ctl0 = pl0.pl_ctl |>
+                      Player_controller.pick_move
+                        { pos = pos0; opp_pos = pos1; cursor = Some cu }
+  and pos1', ctl1 = pl1.pl_ctl |>
+                      Player_controller.pick_move
+                        { pos = pos1; opp_pos = pos0; cursor = None } in
+  (* calculate paths, maybe adjusting from collisions *)
+  let int_paths =
+    { path0 = Path.from_points ~src:pos0 ~tgt:pos0';
+      path1 = Path.from_points ~src:pos1 ~tgt:pos1' } in
+  let paths =
+    { path0 = int_paths.path0 |> path_collide_with_ice map_obs;
+      path1 = int_paths.path1 |> path_collide_with_ice map_obs } in
+  (* update player data *)
+  let pl0 = { pl0 with pl_ctl = ctl0; pl_pos = paths.path0 |> Path.target }
+  and pl1 = { pl1 with pl_ctl = ctl1; pl_pos = paths.path1 |> Path.target } in
   fun g -> { g with
-             pc0; pc1; path0; path1;
-             phase = Moving { time; int_path0; int_path1 } }
+             pl0; pl1;
+             phase = Moving { paths; int_paths } }
 
-let goto_damage_phase path0 pl0 path1 pl1 map_obs =
+let goto_damage_phase pl0 pl1 paths map_obs =
+  (* calculate attacks from path & map collisions *)
+  let { path0; path1 } = paths in
   let atks =
     Attack.set_concat
       [ Attack.path_collision path0 path1;
         burns map_obs path0 path1;
         heals map_obs path0 path1 ]
   in
-  let (dmg0, dmg1) = atks |> Attack.damage_of_set pl0 pl1 in
-  let pl0 = pl0 |> Player.take_damage dmg0
-  and pl1 = pl1 |> Player.take_damage dmg1 in
+  (* calculate damage *)
+  let pl_stats0, pl_stats1 = pl0.pl_stats, pl1.pl_stats in
+  let (dmg0, dmg1) = atks |> Attack.damage_of_set pl_stats0 pl_stats1 in
+  (* apply damage to update players *)
+  let pl0 = { pl0 with pl_stats = pl_stats0 |> Player.take_damage dmg0 }
+  and pl1 = { pl1 with pl_stats = pl_stats1 |> Player.take_damage dmg1 } in
   fun g -> { g with
              pl0; pl1;
-             phase = Damage { atks } }
+             phase = Damage { paths; atks } }
 
-let goto_cast_phase path0 pl0 path1 pl1 map_obs next_id =
+let goto_cast_phase pl0 pl1 paths map_obs next_id =
   let map_obs = decay_obs map_obs in
-  let map_obs, next_id, pl0 = cast_spell map_obs next_id pl0 path0 in
-  let map_obs, next_id, pl1 = cast_spell map_obs next_id pl1 path1 in
+  let map_obs, next_id, pl0 = cast_spell map_obs next_id pl0 paths.path0 in
+  let map_obs, next_id, pl1 = cast_spell map_obs next_id pl1 paths.path1 in
   fun g -> { g with
              pl0; pl1; map_obs; next_id;
              phase = Cast }
 
-let goto_pickup_phase pos0 pl0 pos1 pl1 map_items =
-  let pl0 = pl0 |> player_collect_item map_items pos0
-  and pl1 = pl1 |> player_collect_item map_items pos1
-  and map_items = map_items |> pick_up_items [ pos0; pos1 ] in
+let goto_pickup_phase pl0 pl1 map_items =
+  let pl0 = pl0 |> player_collect_item map_items
+  and pl1 = pl1 |> player_collect_item map_items
+  and map_items = map_items |> pick_up_items pl0 pl1 in
   fun g -> { g with
              pl0; pl1; map_items;
              phase = Pick_up }
@@ -248,34 +275,23 @@ let end_phase g =
   match g.phase with
   | Main { cu } ->
      g |> goto_moving_phase
-            (g.path0 |> Path.source) g.pc0
-            (g.path1 |> Path.source) g.pc1
-            g.map_obs
-            cu
+            g.pl0 g.pl1 g.map_obs cu
 
-  | Moving _ ->
+  | Moving { paths; _ } ->
      g |> goto_damage_phase
-            g.path0 g.pl0
-            g.path1 g.pl1
-            g.map_obs
+            g.pl0 g.pl1 paths g.map_obs
 
-  | Damage _ ->
+  | Damage { paths; _ } ->
      g |> goto_cast_phase
-            g.path0 g.pl0
-            g.path1 g.pl1
-            g.map_obs g.next_id
+            g.pl0 g.pl1 paths g.map_obs g.next_id
 
   | Cast ->
      g |> goto_pickup_phase
-            (g.path0 |> Path.target) g.pl0
-            (g.path1 |> Path.target) g.pl1
-            g.map_items
+            g.pl0 g.pl1 g.map_items
 
   | Pick_up ->
      g |> goto_main_phase
-            (g.path0 |> Path.target)
-            (g.path1 |> Path.target)
-            g.turn_num
+            g.pl0 g.pl1 g.turn_num
 
 let turn_num { turn_num; _ } =
   turn_num
@@ -294,11 +310,11 @@ type path_type =
 let paths g =
   match g.phase with
   | Main { cu } ->
-     let pos0 = g.path0 |> Path.target in
+     let pos0 = g.pl0.pl_pos in
      [ Path.from_points ~src:pos0 ~tgt:cu, Select_path ]
-  | Moving { int_path0; int_path1; _ } ->
-     [ (int_path0, Player_path);
-       (int_path1, Player_path) ]
+  | Moving { int_paths = { path0; path1; }; _ } ->
+     [ (path0, Player_path);
+       (path1, Player_path) ]
   | Damage _ | Cast | Pick_up ->
      []
 
@@ -308,22 +324,20 @@ let grid_clamp x =
 let modify_cursor f g =
   match g.phase with
   | Main { cu } ->
-     let pos0 = g.path0 |> Path.target
-     and pos1 = g.path1 |> Path.target in
-     { g with phase = Main { cu = f pos0 pos1 cu } }
+     { g with phase = Main { cu = f g.pl0.pl_pos cu } }
   | Moving _ | Damage _ | Cast | Pick_up ->
      g
 
 let move_cursor_by dx dy =
   modify_cursor
-    (fun _ _ (x, y) ->
+    (fun _ (x, y) ->
       (grid_clamp (x + dx),
        grid_clamp (y + dy)))
 
 let reset_cursor =
   modify_cursor
-    (fun pos0 _ _ ->
-      pos0)
+    (fun pos _ ->
+      pos)
 
 let cursor g =
   match g.phase with
@@ -332,7 +346,7 @@ let cursor g =
 
 (* init *)
 
-let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
+let make ~player_ctrl_0:ctl0 ~player_ctrl_1:ctl1 =
   let map_items, map_obs, next_id = [], [], 2 in
   let map_items, next_id =
     [ Item_type.Weapon Staff,  (3, 7);
@@ -342,18 +356,19 @@ let make ~player_ctrl_0:pc0 ~player_ctrl_1:pc1 =
       Item_type.Spell Ice,     (6, 0) ]
     |> spawn_items map_items next_id
   in
-  let map_obs, next_id =
+  (* let map_obs, next_id =
     List.init 4 (fun i -> (2 + i, 2))
     |> spawn_obs map_obs next_id Spell_type.Ice 2
-  in
-  let path0 = Path.null ~src:(3, 5)
-  and path1 = Path.null ~src:(6, 7) in
+  in *)
+  let pl0 = { pl_stats = Player.make ~color:0;
+              pl_pos = (3, 5);
+              pl_ctl = ctl0 }
+  and pl1 = { pl_stats = Player.make ~color:1;
+              pl_pos = (6, 7);
+              pl_ctl = ctl1 } in
   { turn_num = 1;
-    phase = main_phase path0 path1;
-    pl0 = Player.make ~color:0;
-    pl1 = Player.make ~color:1;
-    path0; path1;
-    pc0; pc1;
+    phase = main_phase pl0 pl1;
+    pl0; pl1;
     next_id;
     map_items;
     map_obs }
