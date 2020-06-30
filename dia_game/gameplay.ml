@@ -142,18 +142,22 @@ let entities g =
 
 (* attacks and damage *)
 
-let burn_attacks_on_path obs path =
+let attacks_from_obs typ atk_typ path obs =
   obs |> List.rev_filter_map
            (function
-            | { ob_typ = Fire; ob_pos; _ }
-                 when path |> Path.points_mem ob_pos
-              -> Some Attack.{ pos = ob_pos; typ = Burn }
+            | { ob_typ; ob_pos; _ }
+                 when ob_typ = typ && path |> Path.points_mem ob_pos
+              -> Some Attack.{ pos = ob_pos; typ = atk_typ }
             | _
               -> None)
 
-let burn_attacks obs path0 path1 =
-  Attack.{ player_0 = path0 |> burn_attacks_on_path obs;
-           player_1 = path1 |> burn_attacks_on_path obs }
+let burns obs path0 path1 =
+  Attack.{ player_0 = obs |> attacks_from_obs Fire Burn path0;
+           player_1 = obs |> attacks_from_obs Fire Burn path1 }
+
+let heals obs path0 path1 =
+  Attack.{ player_0 = obs |> attacks_from_obs Life Heal path0;
+           player_1 = obs |> attacks_from_obs Life Heal path1 }
 
 let attacks g =
   match g.phase with
@@ -198,7 +202,8 @@ let goto_damage_phase path0 pl0 path1 pl1 map_obs =
   let atks =
     Attack.set_concat
       [ Attack.path_collision path0 path1;
-        burn_attacks map_obs path0 path1 ]
+        burns map_obs path0 path1;
+        heals map_obs path0 path1 ]
   in
   let (dmg0, dmg1) = atks |> Attack.damage_of_set pl0 pl1 in
   let pl0 = pl0 |> Player.take_damage dmg0
