@@ -259,8 +259,10 @@ module Make
 
     let render_hit_mark ~assets ~cx i (typ: Attack.typ) tf =
       let sx = match typ with
-        | Attk | Burn -> 704
-        | Crit        -> 768
+        | Attk -> 704
+        | Crit -> 768
+        | Burn -> 832
+        | Heal -> 896
       in
       let sy = 64 in
       cx |> Ctxt.image assets.sprites

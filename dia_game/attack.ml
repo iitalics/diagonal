@@ -8,6 +8,7 @@ and typ =
   | Crit
   | Attk
   | Burn
+  | Heal
 
 type set =
   (* player_i = attacks that are dealing damage *to* player 'i' *)
@@ -32,7 +33,8 @@ let collision pt0 pt1 =
 let damage Player.{ weapon; _ } = function
   | Crit -> (weapon |> Weapon_type.atk) + (weapon |> Weapon_type.crit_bonus)
   | Attk -> (weapon |> Weapon_type.atk)
-  | Burn -> Spell_type.burn_atk
+  | Burn -> Spell_type.burn_hp
+  | Heal -> - Spell_type.heal_hp
 
 let path_collision path0 path1 =
   let cons_0 a { player_0; player_1 } = { player_0 = a :: player_0; player_1 } in
