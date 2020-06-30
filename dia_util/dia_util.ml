@@ -92,3 +92,15 @@ module Option = struct
   include Option
   include Applicative(M0)
 end
+
+(* array *)
+
+module Array = struct
+
+  let swap i j a =
+    let tmp = a.(i) in
+    a.(i) <- a.(j);
+    a.(j) <- tmp
+
+  include Array
+end

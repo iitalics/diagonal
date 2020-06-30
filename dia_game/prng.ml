@@ -64,3 +64,11 @@ let rand_pick_weighted ws =
   in
   let max = ws |> List.sum_by snd in
   find (rand_int ~max g) ws
+
+let rand_shuffle (arr: 'a array) : unit gen =
+  fun g ->
+  let len = Array.length arr in
+  for i = 0 to len - 1 do
+    let j = len - 1 - i in
+    arr |> Array.swap j (g |> rand_int ~max:(j + 1))
+  done
