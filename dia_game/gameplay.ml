@@ -18,6 +18,9 @@ and phase =
   | Moving of
       { paths: paths;
         int_paths: paths }
+  | Bouncing of
+      { paths: paths;
+        orig_pos: Pos.t }
   | Damage of
       { paths: paths;
         atks: Attack.set }
@@ -60,7 +63,8 @@ let player_collect_item items pl =
 let player_entities_of_phase pl0 pl1 phase =
   let typ0, typ1 =
     match phase with
-    | Main _ | Damage _ | Cast | Pick_up ->
+    (* TODO: special animation for "bouncing" phase *)
+    | Main _ | Damage _ | Bouncing _ | Cast | Pick_up ->
        Entity.Blob_idle (pl0.pl_stats, pl0.pl_pos),
        Entity.Blob_idle (pl1.pl_stats, pl1.pl_pos)
     | Moving { paths = { path0; path1; _ }; _ } ->
@@ -175,16 +179,17 @@ let heals obs path0 path1 =
 let attacks g =
   match g.phase with
   | Damage { atks; _ } -> atks
-  | Main _ | Moving _ | Cast | Pick_up -> Attack.empty_set
+  | _ -> Attack.empty_set
 
 (* phases, turns *)
 
 let phase_duration g =
   match g.phase with
   | Main _          -> Rules.turn_duration
-  | Damage _        -> 1.
-  | Cast            -> 1.
-  | Pick_up         -> 1.
+  | Damage _        -> 1.0
+  | Cast            -> 1.0
+  | Pick_up         -> 1.0
+  | Bouncing _      -> 0.5
   | Moving { paths = { path0; path1 }; _ } ->
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)
@@ -236,6 +241,34 @@ let goto_moving_phase pl0 pl1 map_obs cu =
              pl0; pl1;
              phase = Moving { paths; int_paths } }
 
+let all_directions =
+  [ -1,-1; 0,-1; 1,-1;
+    -1, 0;       1, 0;
+    -1, 1; 0, 1; 1, 1 ]
+
+let bounce_positions (x0, y0) =
+  all_directions
+  |> List.rev_filter_map
+       (fun (dx, dy) ->
+         let x, y = (x0 + dx, y0 + dy) in
+         if x < 0 || y < 0 || x >= Rules.grid_cols || y >= Rules.grid_cols then
+           None
+         else
+           Some((x, y)))
+
+let maybe_goto_bouncing_phase pl0 pl1 paths prng =
+  if not @@ Pos.equal pl0.pl_pos pl1.pl_pos then
+    None
+  else
+    let orig_pos = pl0.pl_pos in
+    let candidates = bounce_positions orig_pos |> Array.of_list in
+    prng |> Prng.rand_shuffle candidates;
+    let pl0 = { pl0 with pl_pos = candidates.(0) }
+    and pl1 = { pl1 with pl_pos = candidates.(1) } in
+    Some(fun g -> { g with
+                    pl0; pl1;
+                    phase = Bouncing { paths; orig_pos } })
+
 let goto_damage_phase pl0 pl1 paths map_obs =
   (* calculate attacks from path & map collisions *)
   let { path0; path1 } = paths in
@@ -278,6 +311,12 @@ let end_phase g =
             g.pl0 g.pl1 g.map_obs cu
 
   | Moving { paths; _ } ->
+     let prng = Prng.make ~seed:12345 in
+     g |> Option.value
+            (maybe_goto_bouncing_phase g.pl0 g.pl1 paths prng)
+            ~default:(goto_damage_phase g.pl0 g.pl1 paths g.map_obs)
+
+  | Bouncing { paths; _ } ->
      g |> goto_damage_phase
             g.pl0 g.pl1 paths g.map_obs
 
@@ -299,7 +338,7 @@ let turn_num { turn_num; _ } =
 let turn_duration { phase; _ } =
   match phase with
   | Main _ -> Some Rules.turn_duration
-  | Moving _ | Damage _ | Cast | Pick_up -> None
+  | _ -> None
 
 (* cursor, paths *)
 
@@ -315,7 +354,8 @@ let paths g =
   | Moving { int_paths = { path0; path1; }; _ } ->
      [ (path0, Player_path);
        (path1, Player_path) ]
-  | Damage _ | Cast | Pick_up ->
+  | Damage _ | Bouncing _ | Cast | Pick_up ->
+     (* TODO: another path type for some of these phases *)
      []
 
 let grid_clamp x =
@@ -325,8 +365,13 @@ let modify_cursor f g =
   match g.phase with
   | Main { cu } ->
      { g with phase = Main { cu = f g.pl0.pl_pos cu } }
-  | Moving _ | Damage _ | Cast | Pick_up ->
+  | _ ->
      g
+
+let cursor g =
+  match g.phase with
+  | Main { cu } -> Some(cu)
+  | _ -> None
 
 let move_cursor_by dx dy =
   modify_cursor
@@ -338,11 +383,6 @@ let reset_cursor =
   modify_cursor
     (fun pos _ ->
       pos)
-
-let cursor g =
-  match g.phase with
-  | Main { cu } -> Some(cu)
-  | Moving _ | Damage _ | Cast | Pick_up -> None
 
 (* init *)
 
