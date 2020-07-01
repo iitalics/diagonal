@@ -254,10 +254,10 @@ let attacks g =
 
 let phase_duration g =
   match g.phase with
-  | Main _          -> Rules.turn_duration
-  | Damage _        -> 1.0
-  | Cast            -> 1.0
-  | Pick_up         -> 1.0
+  | Main _          -> 3.0
+  | Damage _        -> 0.5
+  | Cast            -> 0.5
+  | Pick_up         -> 0.5
   | Bouncing _      -> Rules.bounce_time
   | Moving { paths = { path0; path1 }; _ } ->
      max (Path.length path0 /. Rules.move_vel)
@@ -419,9 +419,9 @@ let end_phase g =
 let turn_num { turn_num; _ } =
   turn_num
 
-let turn_duration { phase; _ } =
-  match phase with
-  | Main _ -> Some Rules.turn_duration
+let turn_duration g =
+  match g.phase with
+  | Main _ -> Some (g |> phase_duration)
   | _ -> None
 
 (* cursor, paths *)
