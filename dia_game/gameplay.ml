@@ -245,10 +245,16 @@ let phase_duration g =
        (Path.length path1 /. Rules.move_vel)
 
 let goto_main_phase rng turn_num pl0 pl1 map_items next_id =
+  let rng, map_items, next_id =
+    if map_items = [] then
+      spawn_items_random
+        rng map_items next_id
+        (List.rev_map_append (fun { it_pos; _ } -> it_pos)
+           map_items [ pl0.pl_pos; pl1.pl_pos ])
+    else
+      rng, map_items, next_id
+  in
   let turn_num = turn_num + 1 in
-  let occupied = List.rev_map_append (fun { it_pos; _ } -> it_pos)
-                   map_items [ pl0.pl_pos; pl1.pl_pos ] in
-  let rng, map_items, next_id = spawn_items_random rng map_items next_id occupied in
   let cu = pl0.pl_pos in
   fun g -> { g with
              rng; turn_num; map_items; next_id;
