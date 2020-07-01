@@ -227,15 +227,14 @@ let phase_duration g =
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)
 
-let main_phase pl0 pl1 =
+let goto_main_phase rng turn_num pl0 pl1 map_items next_id =
   ignore pl1;
-  Main { cu = pl0.pl_pos }
-
-let goto_main_phase pl0 pl1 turn_num =
   let turn_num = turn_num + 1 in
+  let cu = pl0.pl_pos in
+  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
   fun g -> { g with
-             turn_num;
-             phase = main_phase pl0 pl1 }
+             rng; turn_num; map_items; next_id;
+             phase = Main { cu } }
 
 let path_collide_with_ice obs path =
   let src = path |> Path.source in
@@ -362,7 +361,7 @@ let end_phase g =
 
   | Pick_up ->
      g |> goto_main_phase
-            g.pl0 g.pl1 g.turn_num
+            g.rng g.turn_num g.pl0 g.pl1 g.map_items g.next_id
 
 let turn_num { turn_num; _ } =
   turn_num
@@ -421,22 +420,18 @@ let reset_cursor =
 let make ~player_ctrl_0:ctl0 ~player_ctrl_1:ctl1 =
   let rng = Prng.make ~seed:14
   and map_items, map_obs, next_id = [], [], 2 in
-  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
-  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
   let pl0 = { pl_stats = Player.make ~color:0;
               pl_pos = (3, 5);
               pl_ctl = ctl0 }
   and pl1 = { pl_stats = Player.make ~color:1;
               pl_pos = (6, 7);
               pl_ctl = ctl1 } in
-
-  { rng;
-    turn_num = 1;
-    phase = main_phase pl0 pl1;
+  { turn_num = 0; phase = Cast; (* initial values don't matter *)
+    rng;
     pl0; pl1;
     next_id;
     map_items;
-    map_obs }
+    map_obs } |> goto_main_phase rng 0 pl0 pl1 map_items next_id
 
 (* events *)
 
