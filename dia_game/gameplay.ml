@@ -96,7 +96,7 @@ let spawn_items items next_id pos_list typ_list =
     pos_list
     typ_list
 
-let item_spawn_formations_a =
+let item_spawns =
   (* . . . 5 6 . . .
      . . . . . . . .
      . . . . . . . .
@@ -105,24 +105,41 @@ let item_spawn_formations_a =
      . . . . . . . .
      . . . . . . . .
      . . . 6 5 . . . *)
-  [| [ (3, 3); (4, 4) ];
-     [ (4, 3); (3, 4) ];
-     [ (0, 3); (7, 4) ];
-     [ (0, 4); (7, 3) ];
-     [ (3, 0); (4, 7) ];
-     [ (4, 0); (3, 7) ] |]
+  [ [ (3, 3); (4, 4) ];
+    [ (3, 4); (4, 3) ];
+    [ (0, 3); (7, 4) ];
+    [ (0, 4); (7, 3) ];
+    [ (3, 0); (4, 7) ];
+    [ (3, 7); (4, 0) ] ]
+(* NOTE: sublists must all be ordered by Pos.compare *)
 
-let spawn_items_random rng items next_id =
-  let rng = rng |> Prng.copy in
-  let pos_list = rng |> Prng.rand_pick item_spawn_formations_a in
-  let typ_dist = rng |> Prng.rand_pick_weighted Item_type.dist_dist in
-  let typ_list = pos_list |> List.map (fun _ -> rng |> Prng.rand_pick_weighted typ_dist) in
-  let items, next_id =
-    spawn_items items next_id
-      pos_list
-      typ_list
+let item_spawns_no_overlap occupied =
+  let no_overlap =
+    List.merge_fold ~compare:Pos.compare
+      (fun acc _ -> acc)
+      (fun acc _ -> acc)
+      (fun _ _ _ -> false)
+      true
+      (occupied |> List.sort Pos.compare)
   in
-  rng, items, next_id
+  item_spawns |> List.rev_filter no_overlap |> Array.of_list
+
+let spawn_items_random rng items next_id occupied =
+  let form_dist = item_spawns_no_overlap occupied in
+  if Array.length form_dist = 0 then
+    (Printf.printf "not spawning because theres no room.\n";
+     rng, items, next_id)
+  else
+    let rng = rng |> Prng.copy in
+    let typ_dist = rng |> Prng.rand_pick_weighted Item_type.dist_dist in
+    let pos_list = rng |> Prng.rand_pick form_dist in
+    let typ_list = pos_list |> List.map (fun _ -> rng |> Prng.rand_pick_weighted typ_dist) in
+    let items, next_id =
+      spawn_items items next_id
+        pos_list
+        typ_list
+    in
+    rng, items, next_id
 
 let entity_of_item { it_id; it_pos; it_typ } =
   Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
@@ -228,10 +245,11 @@ let phase_duration g =
        (Path.length path1 /. Rules.move_vel)
 
 let goto_main_phase rng turn_num pl0 pl1 map_items next_id =
-  ignore pl1;
   let turn_num = turn_num + 1 in
+  let occupied = List.rev_map_append (fun { it_pos; _ } -> it_pos)
+                   map_items [ pl0.pl_pos; pl1.pl_pos ] in
+  let rng, map_items, next_id = spawn_items_random rng map_items next_id occupied in
   let cu = pl0.pl_pos in
-  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
   fun g -> { g with
              rng; turn_num; map_items; next_id;
              phase = Main { cu } }
