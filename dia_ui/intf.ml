@@ -23,9 +23,15 @@ module type Draw_S = sig
     val size: t -> int * int
   end
 
+  module Shader: sig
+    type t
+    val default: t
+    val with_alpha: float -> t -> t
+  end
+
   module Ctxt: sig
     type t
-    type op = ?t:Affine.t -> t -> unit
+    type op = ?t:Affine.t -> ?s:Shader.t -> t -> unit
 
     val size: t -> int * int
 
