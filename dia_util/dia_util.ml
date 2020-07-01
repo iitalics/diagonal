@@ -62,6 +62,13 @@ module List = struct
     | []      -> ys
     | x :: xs -> rev_map_append f xs (f x :: ys)
 
+  let rev_filter f xs =
+    let rec loop acc = function
+      | []      -> acc
+      | x :: xs -> loop (if f x then x :: acc else acc) xs
+    in
+    loop [] xs
+
   let rev_filter_map f xs =
     let rec loop acc = function
       | []      -> acc
