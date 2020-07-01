@@ -34,6 +34,7 @@ module Make
     module Ctxt = Draw.Ctxt
     module Font = Draw.Font
     module Image = Draw.Image
+    module Shader = Draw.Shader
 
     module Rsrc = struct
       include Rsrc
@@ -139,10 +140,11 @@ module Make
       (Printf.sprintf "ATK: %d" atk,
        Printf.sprintf "DEF: %d" def)
 
+    let pl_alt_alpha = 0.4
     let pl_alt_x = pl_alt_item_x - 48
     let pl_alt_y = 65
     let pl_alt_text = "ALT:"
-    let pl_alt_text_c = Color.of_rgb_s "#fff"
+    let pl_alt_text_c = Color.(of_rgb_s "#fff" |> with_alpha 0.7)
 
     type player_data =
       { pl_tf: Affine.t;
@@ -165,6 +167,7 @@ module Make
 
     and equip_data =
       { eq_tf: Affine.t;
+        eq_sh: Shader.t;
         eq_weap_tf: Affine.t;
         eq_spell_tf: Affine.t;
         mutable eq_weap: Weapon_type.t option;
@@ -177,10 +180,16 @@ module Make
       pl_hpbar_y + pl_hpbar_h
 
     let make_equip_data ~alt base_tf =
+      (* base tf *)
       let tf = base_tf |> Affine.extend in
       tf |> Affine.translate_i
               (if alt then pl_alt_item_x else pl_prm_item_x)
               pl_item_y;
+      (* base shader *)
+      let sh = if alt then
+                  Shader.(default |> with_alpha pl_alt_alpha)
+                else
+                  Shader.default in
       (* weapon *)
       let weap_tf = tf |> Affine.extend in
       weap_tf |> Affine.translate_i
@@ -195,6 +204,7 @@ module Make
       spell_tf |> Affine.scale' (float_of_int pl_spell_w /. 64.);
       (* *)
       { eq_tf = tf;
+        eq_sh = sh;
         eq_weap_tf = weap_tf;
         eq_spell_tf = spell_tf;
         eq_weap = None;
@@ -267,34 +277,36 @@ module Make
               ~t:tf ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
 
-    let render_weap_icon ~assets ~cx tf typ =
+    let render_weap_icon ~assets ~cx tf sh typ =
       let sx = 352 + Weapon_type.to_int typ * 64 in
       let sy = 0 in
       cx |> Ctxt.image assets.sprites
-              ~t:tf ~x:(-32) ~y:(-32)
+              ~t:tf ~s:sh ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
 
-    let render_spell_icon ~assets ~cx tf typ =
+    let render_spell_icon ~assets ~cx tf sh typ =
       let sx = 416 + Spell_type.to_int typ * 64 in
       let sy = 64 in
       cx |> Ctxt.image assets.sprites
-              ~t:tf ~x:(-32) ~y:(-32)
+              ~t:tf ~s:sh ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
 
     let render_equip_data ~assets ~cx
-          { eq_tf; eq_weap_tf; eq_spell_tf; eq_weap;
-            eq_spell; eq_spell_casts_text }
+          { eq_tf; eq_sh;
+            eq_weap_tf; eq_weap;
+            eq_spell_tf; eq_spell; eq_spell_casts_text }
       =
       cx |> Ctxt.vertices `Strip
-              ~t:eq_tf ~c:outl_c
+              ~t:eq_tf ~c:outl_c ~s:eq_sh
               ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
       cx |> Ctxt.vertices `Strip
-              ~t:eq_tf ~c:outl_c
+              ~t:eq_tf ~c:outl_c ~s:eq_sh
               ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
-      eq_weap |> Option.iter (render_weap_icon ~assets ~cx eq_weap_tf);
-      eq_spell |> Option.iter (render_spell_icon ~assets ~cx eq_spell_tf);
+      eq_weap |> Option.iter (render_weap_icon ~assets ~cx eq_weap_tf eq_sh);
+      eq_spell |> Option.iter (render_spell_icon ~assets ~cx eq_spell_tf eq_sh);
       cx |> Ctxt.text eq_spell_casts_text
-              ~t:eq_tf ~c:pl_spell_casts_c ~font:assets.spell_casts_font
+              ~t:eq_tf ~c:pl_spell_casts_c ~s:eq_sh
+              ~font:assets.spell_casts_font
               ~x:pl_spell_casts_x ~y:pl_spell_casts_y
 
     let render_player_data ~assets ~cx
