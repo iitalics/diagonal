@@ -32,3 +32,10 @@ let spell_casts = function
     | Sword
     | Rapier -> 3
   | Staff    -> 4
+
+let dist =
+  [ Shovel, 1;
+    Dagger, 2;
+    Sword,  3;
+    Rapier, 1;
+    Staff,  3 ]

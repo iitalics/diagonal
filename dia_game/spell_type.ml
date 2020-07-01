@@ -13,5 +13,10 @@ let cast_points path = function
   | Ice  -> path |> Path.straight
   | Life -> path |> Path.knee |> Option.to_list
 
+let dist =
+  [ Fire, 3;
+    Ice,  2;
+    Life, 2 ]
+
 let burn_hp = 1
 let heal_hp = 3
