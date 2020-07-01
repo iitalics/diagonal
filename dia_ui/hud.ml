@@ -149,20 +149,46 @@ module Make
         pl_hpbar_ol: int array * int array;
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array;
-        (* item *)
-        pl_item_tf: Affine.t;
-        pl_weap_tf: Affine.t;
-        pl_spell_tf: Affine.t;
-        mutable pl_weap: Weapon_type.t;
-        mutable pl_spell: Spell_type.t option;
-        mutable pl_spell_casts_text: string;
+        (* equip *)
+        pl_eq: equip_data;
         (* stats *)
         mutable pl_stats_text: string * string }
+
+    and equip_data =
+      { eq_tf: Affine.t;
+        eq_weap_tf: Affine.t;
+        eq_spell_tf: Affine.t;
+        mutable eq_weap: Weapon_type.t option;
+        mutable eq_spell: Spell_type.t option;
+        mutable eq_spell_casts_text: string }
 
     let[@ocaml.inline] hpbar_coords amt =
       pl_hpbar_x, pl_hpbar_y,
       Util.int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
       pl_hpbar_y + pl_hpbar_h
+
+    let make_equip_data base_tf =
+      let tf = base_tf |> Affine.extend in
+      tf |> Affine.translate_i pl_item_x pl_item_y;
+      (* weapon *)
+      let weap_tf = tf |> Affine.extend in
+      weap_tf |> Affine.translate_i
+                   (pl_weap_x + pl_weap_w / 2)
+                   (pl_weap_y + pl_weap_w / 2);
+      weap_tf |> Affine.scale' (float_of_int pl_weap_w /. 64.);
+      (* spell *)
+      let spell_tf = tf |> Affine.extend in
+      spell_tf |> Affine.translate_i
+                    (pl_spell_x + pl_spell_w / 2)
+                    (pl_spell_y + pl_spell_w / 2);
+      spell_tf |> Affine.scale' (float_of_int pl_spell_w /. 64.);
+      (* *)
+      { eq_tf = tf;
+        eq_weap_tf = weap_tf;
+        eq_spell_tf = spell_tf;
+        eq_weap = None;
+        eq_spell = None;
+        eq_spell_casts_text = "" }
 
     let make_player_data base_tf idx (pl: Player.t) =
       (* base tf *)
@@ -177,19 +203,6 @@ module Make
                    (pl_icon_x + pl_icon_w / 2)
                    (pl_icon_y + pl_icon_w / 2);
       icon_tf |> Affine.scale' (float_of_int pl_icon_w /. 64.);
-      (* weapon/spell tf *)
-      let item_tf = tf |> Affine.extend in
-      item_tf |> Affine.translate_i pl_item_x pl_item_y;
-      let weap_tf = item_tf |> Affine.extend in
-      weap_tf |> Affine.translate_i
-                   (pl_weap_x + pl_weap_w / 2)
-                   (pl_weap_y + pl_weap_w / 2);
-      weap_tf |> Affine.scale' (float_of_int pl_weap_w /. 64.);
-      let spell_tf = item_tf |> Affine.extend in
-      spell_tf |> Affine.translate_i
-                    (pl_spell_x + pl_spell_w / 2)
-                    (pl_spell_y + pl_spell_w / 2);
-      spell_tf |> Affine.scale' (float_of_int pl_spell_w /. 64.);
       (* *)
       { pl_tf = tf;
         pl_icon_tf = icon_tf;
@@ -198,13 +211,15 @@ module Make
         pl_hpbar_ol = hpbar_coords 1. |> Util.aabb_strip_vertices;
         pl_hpbar_bg = hpbar_coords 1. |> Util.aabb_fill_vertices;
         pl_hpbar_fi = hpbar_coords 1. |> Util.aabb_fill_vertices;
-        pl_item_tf = item_tf;
-        pl_weap_tf = weap_tf;
-        pl_spell_tf = spell_tf;
-        pl_weap = pl.weapon;
-        pl_spell = pl.spell;
-        pl_spell_casts_text = "";
-        pl_stats_text = ("", "") }
+        pl_stats_text = ("", "");
+        pl_eq = make_equip_data tf }
+
+    let set_equip_data weapon spell casts equip =
+      equip.eq_weap <- weapon;
+      equip.eq_spell <- spell;
+      equip.eq_spell_casts_text <- (match casts with
+                                    | Some n -> pl_spell_casts_text n
+                                    | None -> "")
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)
@@ -221,13 +236,10 @@ module Make
       let (fill_xs, _) = player.pl_hpbar_fi in
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
-      (* item *)
-      player.pl_weap <- pl.weapon;
-      player.pl_spell <- pl.spell;
-      player.pl_spell_casts_text <-
-        (match pl |> Player.remaining_casts with
-         | Some n -> pl_spell_casts_text n
-         | None -> "");
+      (* equip *)
+      player.pl_eq |> set_equip_data
+                        (Some pl.weapon) pl.spell
+                        (pl |> Player.remaining_casts);
       (* stats *)
       player.pl_stats_text <- pl_stats_text
                                 ~atk:(pl.weapon |> Weapon_type.atk)
@@ -254,6 +266,22 @@ module Make
               ~t:tf ~x:(-32) ~y:(-32)
               ~sx ~sy ~w:64 ~h:64
 
+    let render_equip_data ~assets ~cx
+          { eq_tf; eq_weap_tf; eq_spell_tf; eq_weap;
+            eq_spell; eq_spell_casts_text }
+      =
+      cx |> Ctxt.vertices `Strip
+              ~t:eq_tf ~c:outl_c
+              ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
+      cx |> Ctxt.vertices `Strip
+              ~t:eq_tf ~c:outl_c
+              ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
+      eq_weap |> Option.iter (render_weap_icon ~assets ~cx eq_weap_tf);
+      eq_spell |> Option.iter (render_spell_icon ~assets ~cx eq_spell_tf);
+      cx |> Ctxt.text eq_spell_casts_text
+              ~t:eq_tf ~c:pl_spell_casts_c ~font:assets.spell_casts_font
+              ~x:pl_spell_casts_x ~y:pl_spell_casts_y
+
     let render_player_data ~assets ~cx
           { pl_tf;
             pl_icon_tf; pl_color;
@@ -261,8 +289,7 @@ module Make
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
-            pl_item_tf; pl_weap_tf; pl_spell_tf; pl_weap; pl_spell;
-            pl_spell_casts_text;
+            pl_eq;
             pl_stats_text = (stats_text1, stats_text2) }
       =
       (* bounding box *)
@@ -286,17 +313,7 @@ module Make
               ~t:pl_tf ~c:pl_hp_text_c ~font:assets.hp_font
               ~x:pl_hp_text_x ~y:pl_hp_text_y;
       (* item & spell *)
-      cx |> Ctxt.vertices `Strip
-              ~t:pl_item_tf ~c:outl_c
-              ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
-      cx |> Ctxt.vertices `Strip
-              ~t:pl_item_tf ~c:outl_c
-              ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
-      pl_weap |> render_weap_icon ~assets ~cx pl_weap_tf;
-      pl_spell |> Option.iter (render_spell_icon ~assets ~cx pl_spell_tf);
-      cx |> Ctxt.text pl_spell_casts_text
-              ~t:pl_tf ~c:pl_spell_casts_c ~font:assets.spell_casts_font
-              ~x:pl_spell_casts_x ~y:pl_spell_casts_y;
+      pl_eq |> render_equip_data ~assets ~cx;
       (* stats *)
       cx |> Ctxt.text stats_text1
               ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
