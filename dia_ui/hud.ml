@@ -106,15 +106,18 @@ module Make
     let pl_hp_text_x0 = pl_hpbar_x + pl_hpbar_w - 5
     let pl_hp_text_y0 = pl_hpbar_y + pl_hpbar_h / 2
 
-    let pl_weap_x = 8
-    let pl_weap_y = 48
+    let pl_item_x = 8
+    let pl_item_y = 40
+
+    let pl_weap_x = 0
+    let pl_weap_y = 8
     let pl_weap_w = 48
     let pl_weap_outl_xs, pl_weap_outl_ys =
       Util.aabb_strip_vertices (pl_weap_x, pl_weap_y,
                                 pl_weap_x + pl_weap_w, pl_weap_y + pl_weap_w)
 
-    let pl_spell_x = 64
-    let pl_spell_y = 52
+    let pl_spell_x = 56
+    let pl_spell_y = 12
     let pl_spell_w = 40
     let pl_spell_outl_xs, pl_spell_outl_ys =
       Util.aabb_strip_vertices (pl_spell_x, pl_spell_y,
@@ -147,6 +150,7 @@ module Make
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array;
         (* item *)
+        pl_item_tf: Affine.t;
         pl_weap_tf: Affine.t;
         pl_spell_tf: Affine.t;
         mutable pl_weap: Weapon_type.t;
@@ -167,20 +171,21 @@ module Make
               (padding / 2
                + (idx - 1) * (pl_bbox_w + padding))
               0;
-      (* icon tf *)
+      (* player icon tf *)
       let icon_tf = tf |> Affine.extend in
       icon_tf |> Affine.translate_i
                    (pl_icon_x + pl_icon_w / 2)
                    (pl_icon_y + pl_icon_w / 2);
       icon_tf |> Affine.scale' (float_of_int pl_icon_w /. 64.);
-      (* weapon tf *)
-      let weap_tf = tf |> Affine.extend in
+      (* weapon/spell tf *)
+      let item_tf = tf |> Affine.extend in
+      item_tf |> Affine.translate_i pl_item_x pl_item_y;
+      let weap_tf = item_tf |> Affine.extend in
       weap_tf |> Affine.translate_i
                    (pl_weap_x + pl_weap_w / 2)
                    (pl_weap_y + pl_weap_w / 2);
       weap_tf |> Affine.scale' (float_of_int pl_weap_w /. 64.);
-      (* spell tf *)
-      let spell_tf = tf |> Affine.extend in
+      let spell_tf = item_tf |> Affine.extend in
       spell_tf |> Affine.translate_i
                     (pl_spell_x + pl_spell_w / 2)
                     (pl_spell_y + pl_spell_w / 2);
@@ -193,6 +198,7 @@ module Make
         pl_hpbar_ol = hpbar_coords 1. |> Util.aabb_strip_vertices;
         pl_hpbar_bg = hpbar_coords 1. |> Util.aabb_fill_vertices;
         pl_hpbar_fi = hpbar_coords 1. |> Util.aabb_fill_vertices;
+        pl_item_tf = item_tf;
         pl_weap_tf = weap_tf;
         pl_spell_tf = spell_tf;
         pl_weap = pl.weapon;
@@ -255,7 +261,7 @@ module Make
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
-            pl_weap_tf; pl_spell_tf; pl_weap; pl_spell;
+            pl_item_tf; pl_weap_tf; pl_spell_tf; pl_weap; pl_spell;
             pl_spell_casts_text;
             pl_stats_text = (stats_text1, stats_text2) }
       =
@@ -281,10 +287,10 @@ module Make
               ~x:pl_hp_text_x ~y:pl_hp_text_y;
       (* item & spell *)
       cx |> Ctxt.vertices `Strip
-              ~t:pl_tf ~c:outl_c
+              ~t:pl_item_tf ~c:outl_c
               ~xs:pl_weap_outl_xs ~ys:pl_weap_outl_ys;
       cx |> Ctxt.vertices `Strip
-              ~t:pl_tf ~c:outl_c
+              ~t:pl_item_tf ~c:outl_c
               ~xs:pl_spell_outl_xs ~ys:pl_spell_outl_ys;
       pl_weap |> render_weap_icon ~assets ~cx pl_weap_tf;
       pl_spell |> Option.iter (render_spell_icon ~assets ~cx pl_spell_tf);
