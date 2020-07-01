@@ -47,7 +47,8 @@ module Make
         turn_font: Font.t;
         hp_font: Font.t;
         spell_casts_font: Font.t;
-        stats_font: Font.t }
+        stats_font: Font.t;
+        alt_font: Font.t }
 
     let assets_rsrc : assets rsrc =
       let images =
@@ -58,14 +59,15 @@ module Make
                 [ font ~family:"space_mono" ~size:14;
                   font ~family:"space_mono_bold" ~size:12;
                   font ~family:"space_mono_bold" ~size:14;
-                  font ~family:"space_mono_bold" ~size:14 ])
+                  font ~family:"space_mono_bold" ~size:14;
+                  font ~family:"space_mono" ~size:16 ])
       in
       Rsrc.map2
         (fun[@ocaml.warning "-8"]
             sprites
-            [ turn_font; hp_font; spell_casts_font; stats_font ]
+            [ turn_font; hp_font; spell_casts_font; stats_font; alt_font ]
          ->
-          { sprites; turn_font; hp_font; spell_casts_font; stats_font })
+          { sprites; turn_font; hp_font; spell_casts_font; stats_font; alt_font })
         images
         fonts
 
@@ -106,7 +108,8 @@ module Make
     let pl_hp_text_x0 = pl_hpbar_x + pl_hpbar_w - 5
     let pl_hp_text_y0 = pl_hpbar_y + pl_hpbar_h / 2
 
-    let pl_item_x = 8
+    let pl_prm_item_x = 8
+    let pl_alt_item_x = 309
     let pl_item_y = 40
 
     let pl_weap_x = 0
@@ -136,6 +139,11 @@ module Make
       (Printf.sprintf "ATK: %d" atk,
        Printf.sprintf "DEF: %d" def)
 
+    let pl_alt_x = pl_alt_item_x - 48
+    let pl_alt_y = 65
+    let pl_alt_text = "ALT:"
+    let pl_alt_text_c = Color.of_rgb_s "#fff"
+
     type player_data =
       { pl_tf: Affine.t;
         (* icon *)
@@ -150,7 +158,8 @@ module Make
         pl_hpbar_bg: int array * int array;
         pl_hpbar_fi: int array * int array;
         (* equip *)
-        pl_eq: equip_data;
+        pl_prm: equip_data;
+        pl_alt: equip_data;
         (* stats *)
         mutable pl_stats_text: string * string }
 
@@ -167,9 +176,11 @@ module Make
       Util.int_lerp amt pl_hpbar_x (pl_hpbar_x + pl_hpbar_w),
       pl_hpbar_y + pl_hpbar_h
 
-    let make_equip_data base_tf =
+    let make_equip_data ~alt base_tf =
       let tf = base_tf |> Affine.extend in
-      tf |> Affine.translate_i pl_item_x pl_item_y;
+      tf |> Affine.translate_i
+              (if alt then pl_alt_item_x else pl_prm_item_x)
+              pl_item_y;
       (* weapon *)
       let weap_tf = tf |> Affine.extend in
       weap_tf |> Affine.translate_i
@@ -212,7 +223,8 @@ module Make
         pl_hpbar_bg = hpbar_coords 1. |> Util.aabb_fill_vertices;
         pl_hpbar_fi = hpbar_coords 1. |> Util.aabb_fill_vertices;
         pl_stats_text = ("", "");
-        pl_eq = make_equip_data tf }
+        pl_prm = make_equip_data tf ~alt:false;
+        pl_alt = make_equip_data tf ~alt:true }
 
     let set_equip_data weapon spell casts equip =
       equip.eq_weap <- weapon;
@@ -237,9 +249,12 @@ module Make
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
       (* equip *)
-      player.pl_eq |> set_equip_data
-                        (Some pl.weapon) pl.spell
-                        (pl |> Player.remaining_casts);
+      player.pl_prm |> set_equip_data
+                         (Some pl.weapon) pl.spell
+                         (pl |> Player.remaining_casts);
+      (match pl.color with
+       | 0 -> player.pl_alt |> set_equip_data None (Some Fire) (Some 2)
+       | _ -> player.pl_alt |> set_equip_data (Some Rapier) (Some Ice) (Some 1));
       (* stats *)
       player.pl_stats_text <- pl_stats_text
                                 ~atk:(pl.weapon |> Weapon_type.atk)
@@ -289,7 +304,7 @@ module Make
             pl_hpbar_ol = (hp_ol_xs, hp_ol_ys);
             pl_hpbar_bg = (hp_bg_xs, hp_bg_ys);
             pl_hpbar_fi = (hp_fi_xs, hp_fi_ys);
-            pl_eq;
+            pl_prm; pl_alt;
             pl_stats_text = (stats_text1, stats_text2) }
       =
       (* bounding box *)
@@ -313,7 +328,11 @@ module Make
               ~t:pl_tf ~c:pl_hp_text_c ~font:assets.hp_font
               ~x:pl_hp_text_x ~y:pl_hp_text_y;
       (* item & spell *)
-      pl_eq |> render_equip_data ~assets ~cx;
+      pl_prm |> render_equip_data ~assets ~cx;
+      cx |> Ctxt.text pl_alt_text
+              ~t:pl_tf ~c:pl_alt_text_c ~font:assets.alt_font
+              ~x:pl_alt_x ~y:pl_alt_y;
+      pl_alt |> render_equip_data ~assets ~cx;
       (* stats *)
       cx |> Ctxt.text stats_text1
               ~t:pl_tf ~c:pl_stats_text_c ~font:assets.stats_font
