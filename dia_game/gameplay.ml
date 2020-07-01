@@ -85,14 +85,44 @@ let pick_up_items pl0 pl1 items =
                not (Pos.equal pl0.pl_pos it_pos
                     || Pos.equal pl1.pl_pos it_pos))
 
-let spawn_items items next_id descs =
-  descs |> List.fold_left
-             (fun (items, id) (typ, pos) ->
-               { it_id = id;
-                 it_typ = typ;
-                 it_pos = pos } :: items,
-               id + 1)
-             (items, next_id)
+let spawn_items items next_id pos_list typ_list =
+  List.fold_left2
+    (fun (items, id) pos typ ->
+      { it_id = id;
+        it_typ = typ;
+        it_pos = pos } :: items,
+      id + 1)
+    (items, next_id)
+    pos_list
+    typ_list
+
+let item_spawn_formations_a =
+  (* . . . 5 6 . . .
+     . . . . . . . .
+     . . . . . . . .
+     2 . . 0 1 . . 3
+     3 . . 1 0 . . 2
+     . . . . . . . .
+     . . . . . . . .
+     . . . 6 5 . . . *)
+  [| [ (3, 3); (4, 4) ];
+     [ (4, 3); (3, 4) ];
+     [ (0, 3); (7, 4) ];
+     [ (0, 4); (7, 3) ];
+     [ (3, 0); (4, 7) ];
+     [ (4, 0); (3, 7) ] |]
+
+let spawn_items_random rng items next_id =
+  let rng = rng |> Prng.copy in
+  let pos_list = rng |> Prng.rand_pick item_spawn_formations_a in
+  let typ_dist = rng |> Prng.rand_pick_weighted Item_type.dist_dist in
+  let typ_list = pos_list |> List.map (fun _ -> rng |> Prng.rand_pick_weighted typ_dist) in
+  let items, next_id =
+    spawn_items items next_id
+      pos_list
+      typ_list
+  in
+  rng, items, next_id
 
 let entity_of_item { it_id; it_pos; it_typ } =
   Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
@@ -389,26 +419,18 @@ let reset_cursor =
 (* init *)
 
 let make ~player_ctrl_0:ctl0 ~player_ctrl_1:ctl1 =
-  let map_items, map_obs, next_id = [], [], 2 in
-  let map_items, next_id =
-    [ Item_type.Weapon Staff,  (3, 7);
-      Item_type.Weapon Rapier, (4, 0);
-      Item_type.Spell Fire,    (1, 1);
-      Item_type.Spell Life,    (0, 1);
-      Item_type.Spell Ice,     (6, 0) ]
-    |> spawn_items map_items next_id
-  in
-  (* let map_obs, next_id =
-    List.init 4 (fun i -> (2 + i, 2))
-    |> spawn_obs map_obs next_id Spell_type.Ice 2
-  in *)
+  let rng = Prng.make ~seed:14
+  and map_items, map_obs, next_id = [], [], 2 in
+  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
+  let rng, map_items, next_id = spawn_items_random rng map_items next_id in
   let pl0 = { pl_stats = Player.make ~color:0;
               pl_pos = (3, 5);
               pl_ctl = ctl0 }
   and pl1 = { pl_stats = Player.make ~color:1;
               pl_pos = (6, 7);
               pl_ctl = ctl1 } in
-  { rng = Prng.make ~seed:123456;
+
+  { rng;
     turn_num = 1;
     phase = main_phase pl0 pl1;
     pl0; pl1;
