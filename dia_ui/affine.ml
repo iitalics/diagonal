@@ -31,6 +31,10 @@ let[@ocaml.inline] reset t =
   t.m11 <- 1.; t.m12 <- 0.; t.m13 <- 0.;
   t.m21 <- 0.; t.m22 <- 1.; t.m23 <- 0.
 
+let[@ocaml.inline] zero t =
+  t.m11 <- 0.; t.m12 <- 0.; t.m13 <- 0.;
+  t.m21 <- 0.; t.m22 <- 0.; t.m23 <- 0.
+
 let[@ocaml.inline] transform n11 n12 n13 n21 n22 n23 t =
   (*
     [ m11 m12 m13 ]   [ n11 n12 n13 ]
@@ -50,6 +54,11 @@ let[@ocaml.inline] scale sx sy t =
   t |> transform
          sx 0. 0.
          0. sy 0.
+
+let[@ocaml.inline] scale' s t =
+  t |> transform
+         s  0. 0.
+         0. s  0.
 
 let[@ocaml.inline] translate dx dy t =
   t |> transform

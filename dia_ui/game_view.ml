@@ -242,7 +242,7 @@ module Make
       tf |> Affine.reset;
       match cur with
       | Some(pos) -> tf |> translate_to_grid_center pos
-      | None      -> tf |> Affine.scale 0. 0.
+      | None      -> tf |> Affine.zero
 
     let render_cursor ~assets ~cx tf =
       cx |> Ctxt.image assets.sprites
@@ -382,7 +382,7 @@ module Make
       | No_anim | Path_anim _ | Lerp _ -> ()
       | Decay_blinking ->
          if not @@ decay_is_visible time then
-           tf |> Affine.scale 0. 0.
+           tf |> Affine.zero
 
     let update_entity_tf time (e: entity_data) =
       let (x0, y0) = e.en_pos in

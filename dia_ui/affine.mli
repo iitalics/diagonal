@@ -23,8 +23,10 @@ val ( |> ): float * float -> t -> float * float
 (* mutators *)
 
 val reset:        t -> unit
+val zero:         t -> unit
 val transform:    (t -> unit) f6_fn
 val scale:        (t -> unit) f2_fn
+val scale':       (t -> unit) f1_fn
 val translate:    (t -> unit) f2_fn
 val rotate:       (t -> unit) f1_fn
 

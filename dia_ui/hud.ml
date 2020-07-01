@@ -172,22 +172,19 @@ module Make
       icon_tf |> Affine.translate_i
                    (pl_icon_x + pl_icon_w / 2)
                    (pl_icon_y + pl_icon_w / 2);
-      (let s = float_of_int pl_icon_w /. 64. in
-       icon_tf |> Affine.scale s s);
+      icon_tf |> Affine.scale' (float_of_int pl_icon_w /. 64.);
       (* weapon tf *)
       let weap_tf = tf |> Affine.extend in
       weap_tf |> Affine.translate_i
                    (pl_weap_x + pl_weap_w / 2)
                    (pl_weap_y + pl_weap_w / 2);
-      (let s = float_of_int pl_weap_w /. 64. in
-       weap_tf |> Affine.scale s s);
+      weap_tf |> Affine.scale' (float_of_int pl_weap_w /. 64.);
       (* spell tf *)
       let spell_tf = tf |> Affine.extend in
       spell_tf |> Affine.translate_i
                     (pl_spell_x + pl_spell_w / 2)
                     (pl_spell_y + pl_spell_w / 2);
-      (let s = float_of_int pl_spell_w /. 64. in
-       spell_tf |> Affine.scale s s);
+      spell_tf |> Affine.scale' (float_of_int pl_spell_w /. 64.);
       (* *)
       { pl_tf = tf;
         pl_icon_tf = icon_tf;
