@@ -78,45 +78,47 @@ module Ctxt = struct
     cx##.fillStyle := c.Color.rgb;
     cx##fillRect 0. 0. (float_of_int w) (float_of_int h)
 
-  let text ~x ~y ~font ~c ?t str (cx: t) =
-    cx |> transform t;
+  type op = ?t:Affine.t -> t -> unit
+
+  let[@ocaml.inline] op f : op =
+    fun ?t cx ->
+    cx |> transform t; f cx; cx |> reset
+
+  let set_fill c cx =
     cx##.fillStyle := c.Color.rgb;
-    cx##.globalAlpha := c.Color.a;
-    cx##.font := font;
-    cx##.textAlign := _LEFT;
-    cx##.textBaseline := _TOP;
-    cx##fillText (Js.string str) (float_of_int x) (float_of_int y);
-    cx |> reset
+    cx##.globalAlpha := c.Color.a
 
-  let image ~x ~y ~sx ~sy ~w ~h ?t elem (cx: t) =
-    cx |> transform t;
-    cx##drawImage_full elem
-      (float_of_int sx) (float_of_int sy) (float_of_int w) (float_of_int h)
-      (float_of_int x) (float_of_int y) (float_of_int w) (float_of_int h);
-    cx |> reset
+  let set_stroke c cx =
+    cx##.strokeStyle := c.Color.rgb;
+    cx##.globalAlpha := c.Color.a
 
-  let[@ocaml.inline] lift_pen i = function
-    | `Lines -> (i mod 2) = 0
-    | _      -> i = 0
+  let text ~x ~y ~font ~c str =
+    op @@ fun cx ->
+          cx |> set_fill c;
+          cx##.font := font;
+          cx##.textAlign := _LEFT;
+          cx##.textBaseline := _TOP;
+          cx##fillText (Js.string str) (float_of_int x) (float_of_int y)
 
-  let[@ocaml.inline] is_fill = function
-    | `Fill -> true
-    | _ -> false
+  let image ~x ~y ~sx ~sy ~w ~h elem =
+    op @@ fun cx ->
+          cx##drawImage_full elem
+            (float_of_int sx) (float_of_int sy) (float_of_int w) (float_of_int h)
+            (float_of_int x) (float_of_int y) (float_of_int w) (float_of_int h)
 
-  let vertices ~xs ~ys ~c ?t mode (cx: t) =
-    cx |> transform t;
-    if not (mode |> is_fill) then cx##translate 0.5 0.5;
-    cx##beginPath;
-    xs |> Array.iteri (fun i x ->
-              let x, y = float_of_int x, float_of_int ys.(i) in
-              if mode |> lift_pen i then
-                cx##moveTo x y
-              else
-                cx##lineTo x y);
-    cx##.globalAlpha := c.Color.a;
-    if mode |> is_fill then
-      ( cx##.fillStyle   := c.Color.rgb; cx##fill )
-    else
-      ( cx##.strokeStyle := c.Color.rgb; cx##stroke );
-    cx |> reset
+  let vertices ~xs ~ys ~c mode =
+    op @@ fun cx ->
+          let is_fill = (mode = `Fill) in
+          if not is_fill then cx##translate 0.5 0.5;
+          cx##beginPath;
+          xs |> Array.iteri (fun i x ->
+                    let x, y = float_of_int x, float_of_int ys.(i) in
+                    if (i = 0) || (mode = `Lines && (i mod 2) = 0) then
+                      cx##moveTo x y
+                    else
+                      cx##lineTo x y);
+          if is_fill then
+            ( cx |> set_fill c; cx##fill )
+          else
+            ( cx |> set_stroke c; cx##stroke )
 end

@@ -25,6 +25,8 @@ module type Draw_S = sig
 
   module Ctxt: sig
     type t
+    type op = ?t:Affine.t -> t -> unit
+
     val size: t -> int * int
 
     (** [cx |> clear ~c] fills the entire display with color [c]. *)
@@ -32,18 +34,17 @@ module type Draw_S = sig
 
     (** [cx |> text ~x ~y ~font ~c t] draws text [t] with color [c], font [font] at
        position [x, y]. *)
-    val text: x:int -> y:int -> font:Font.t -> c:Color.t -> ?t:Affine.t -> string -> t -> unit
+    val text: x:int -> y:int -> font:Font.t -> c:Color.t -> string -> op
 
     (** [cx |> image ~x ~y ~sx ~sy ~w ~h img] draws image [img] at position [x, y].
         with source rect origin [sx, sy] and size [w, h]. *)
-    val image: x:int -> y:int -> sx:int -> sy:int -> w:int -> h:int
-               -> ?t:Affine.t -> Image.t -> t -> unit
+    val image: x:int -> y:int -> sx:int -> sy:int -> w:int -> h:int -> Image.t -> op
 
     (** [cx |> lines ~xs ~ys ~c mode] draws vertices with color [c], x-coordinates [xs],
        and y-coordinates [ys]. [mode] determines if pairs of vertices form disjoint lines
        ([`Lines]), if each adjacent vertex is connected in order ([`Strip]), or if the
        vertices represent the points of a filled polygon ([`Fill]). *)
-    val vertices: xs:int array -> ys:int array -> c:Color.t -> ?t:Affine.t -> vertices -> t -> unit
+    val vertices: xs:int array -> ys:int array -> c:Color.t -> vertices -> op
   end
 end
 
