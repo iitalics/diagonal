@@ -5,6 +5,7 @@ type t =
     (* turn / phase *)
     turn_num: int;
     phase: phase;
+    spawn_timers: spawn_timer list;
     (* players *)
     pl0: player;
     pl1: player;
@@ -27,6 +28,10 @@ and phase =
         atks: Attack.set }
   | Cast
   | Pick_up
+
+and spawn_timer =
+  { sp_tm_delay: int;
+    sp_tm_ids: Entity.Id.t list }
 
 and paths =
   { path0: Path.t;
@@ -85,16 +90,21 @@ let pick_up_items pl0 pl1 items =
                not (Pos.equal pl0.pl_pos it_pos
                     || Pos.equal pl1.pl_pos it_pos))
 
-let spawn_items items next_id pos_list typ_list =
-  List.fold_left2
-    (fun (items, id) pos typ ->
-      { it_id = id;
-        it_typ = typ;
-        it_pos = pos } :: items,
-      id + 1)
-    (items, next_id)
-    pos_list
-    typ_list
+let spawn_items map_items next_id pos_list typ_list =
+  let new_its, next_id =
+    List.fold_left2
+      (fun (its, id) pos typ ->
+        { it_id = id;
+          it_typ = typ;
+          it_pos = pos } :: its,
+        id + 1)
+      ([], next_id)
+      pos_list
+      typ_list
+  in
+  List.rev_append new_its map_items,
+  next_id,
+  List.rev_map (fun { it_id; _ } -> it_id) new_its
 
 let item_spawns =
   (* . . . 5 6 . . .
@@ -124,22 +134,31 @@ let item_spawns_no_overlap occupied =
   in
   item_spawns |> List.rev_filter no_overlap |> Array.of_list
 
-let spawn_items_random rng items next_id occupied =
+let spawn_items_random rng map_items next_id ~occupied =
   let form_dist = item_spawns_no_overlap occupied in
   if Array.length form_dist = 0 then
-    (Printf.printf "not spawning because theres no room.\n";
-     rng, items, next_id)
+    rng, (map_items, next_id, [])
   else
     let rng = rng |> Prng.copy in
     let typ_dist = rng |> Prng.rand_pick_weighted Item_type.dist_dist in
     let pos_list = rng |> Prng.rand_pick form_dist in
     let typ_list = pos_list |> List.map (fun _ -> rng |> Prng.rand_pick_weighted typ_dist) in
-    let items, next_id =
-      spawn_items items next_id
-        pos_list
-        typ_list
-    in
-    rng, items, next_id
+    rng, spawn_items map_items next_id pos_list typ_list
+
+let make_spawn_timer ?(delay=0) ids =
+  { sp_tm_delay = delay; sp_tm_ids = ids }
+
+let tick_spawn_timer sp_tm =
+  { sp_tm with sp_tm_delay = max 0 (sp_tm.sp_tm_delay - 1) }
+
+let spawn_timer_should_spawn map_item_ids { sp_tm_delay; sp_tm_ids } =
+  sp_tm_delay = 0 &&
+    List.merge_fold ~compare:Entity.Id.compare
+      (fun acc _ -> acc)
+      (fun acc _ -> acc)
+      (fun _ _ _ -> false)
+      true
+      sp_tm_ids map_item_ids
 
 let entity_of_item { it_id; it_pos; it_typ } =
   Entity.{ id = it_id; typ = Item (it_typ, it_pos) }
@@ -244,20 +263,30 @@ let phase_duration g =
      max (Path.length path0 /. Rules.move_vel)
        (Path.length path1 /. Rules.move_vel)
 
-let goto_main_phase rng turn_num pl0 pl1 map_items next_id =
-  let rng, map_items, next_id =
-    if map_items = [] then
-      spawn_items_random
-        rng map_items next_id
-        (List.rev_map_append (fun { it_pos; _ } -> it_pos)
-           map_items [ pl0.pl_pos; pl1.pl_pos ])
-    else
-      rng, map_items, next_id
+let goto_main_phase rng turn_num spawn_timers pl0 pl1 map_items next_id =
+  let spawn_timers, rng, map_items, next_id =
+    List.fold_left
+      (fun (sts, rng, its, id) st ->
+        let it_ids =
+          its |> List.rev_map (fun { it_id; _ } -> it_id) |>
+            List.sort Entity.Id.compare
+        in
+        if st |> spawn_timer_should_spawn it_ids then
+          let rng, (its, id, new_ids) =
+            spawn_items_random rng its id
+              ~occupied:(List.rev_map_append (fun { it_pos; _ } -> it_pos) its
+                           [ pl0.pl_pos; pl1.pl_pos ])
+          in
+          (make_spawn_timer new_ids :: sts, rng, its, id)
+        else
+          (tick_spawn_timer st :: sts, rng, its, id))
+      ([], rng, map_items, next_id)
+      spawn_timers
   in
   let turn_num = turn_num + 1 in
   let cu = pl0.pl_pos in
   fun g -> { g with
-             rng; turn_num; map_items; next_id;
+             rng; turn_num; spawn_timers; map_items; next_id;
              phase = Main { cu } }
 
 let path_collide_with_ice obs path =
@@ -385,7 +414,7 @@ let end_phase g =
 
   | Pick_up ->
      g |> goto_main_phase
-            g.rng g.turn_num g.pl0 g.pl1 g.map_items g.next_id
+            g.rng g.turn_num g.spawn_timers g.pl0 g.pl1 g.map_items g.next_id
 
 let turn_num { turn_num; _ } =
   turn_num
@@ -443,19 +472,23 @@ let reset_cursor =
 
 let make ~player_ctrl_0:ctl0 ~player_ctrl_1:ctl1 =
   let rng = Prng.make ~seed:14
-  and map_items, map_obs, next_id = [], [], 2 in
+  and map_items, map_obs, next_id = [], [], 2
+  and spawn_timers =
+    [ make_spawn_timer [] ~delay:1;
+      make_spawn_timer [] ~delay:3 ] in
   let pl0 = { pl_stats = Player.make ~color:0;
               pl_pos = (3, 5);
               pl_ctl = ctl0 }
   and pl1 = { pl_stats = Player.make ~color:1;
               pl_pos = (6, 7);
               pl_ctl = ctl1 } in
-  { turn_num = 0; phase = Cast; (* initial values don't matter *)
-    rng;
+  { rng;
+    turn_num = 0; phase = Cast; (* initial values don't matter *)
+    spawn_timers;
     pl0; pl1;
     next_id;
     map_items;
-    map_obs } |> goto_main_phase rng 0 pl0 pl1 map_items next_id
+    map_obs } |> goto_main_phase rng 0 spawn_timers pl0 pl1 map_items next_id
 
 (* events *)
 
