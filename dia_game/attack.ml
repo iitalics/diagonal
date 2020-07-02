@@ -30,9 +30,11 @@ let collision pt0 pt1 =
   |> one_sided pt0 pt1 (fun x -> `L x)
   |> one_sided pt1 pt0 (fun x -> `R x)
 
-let damage Player.{ weapon; _ } = function
-  | Crit -> (weapon |> Weapon_type.atk) + (weapon |> Weapon_type.crit_bonus)
-  | Attk -> (weapon |> Weapon_type.atk)
+let damage_of_typ pl typ =
+  let w = pl.Player.prm.weapon in
+  match typ with
+  | Crit -> Weapon_type.atk w + Weapon_type.crit_bonus w
+  | Attk -> Weapon_type.atk w
   | Burn -> Spell_type.burn_hp
   | Heal -> - Spell_type.heal_hp
 
@@ -53,7 +55,7 @@ let path_collision path0 path1 =
       (path1 |> Path.points |> List.sort compare)
 
 let damage_of_set pl0 pl1 s =
-  let dmg pl ts = ts |> List.sum_by (fun { typ; _ } -> typ |> damage pl) in
+  let dmg pl ts = ts |> List.sum_by (fun { typ; _ } -> damage_of_typ pl typ) in
   (dmg pl0 s.player_0,
    dmg pl1 s.player_1)
 

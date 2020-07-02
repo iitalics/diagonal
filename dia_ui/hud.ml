@@ -236,12 +236,12 @@ module Make
         pl_prm = make_equip_data tf ~alt:false;
         pl_alt = make_equip_data tf ~alt:true }
 
-    let set_equip_data weapon spell casts equip =
-      equip.eq_weap <- weapon;
-      equip.eq_spell <- spell;
-      equip.eq_spell_casts_text <- (match casts with
-                                    | Some n -> pl_spell_casts_text n
-                                    | None -> "")
+    let set_equip_data (eq: Player.Equip.t) equip =
+      equip.eq_weap <- Some eq.weapon;
+      equip.eq_spell <- eq.spell;
+      equip.eq_spell_casts_text <- (match Player.Equip.casts_left eq with
+                                    | 0 -> ""
+                                    | n -> pl_spell_casts_text n)
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)
@@ -259,15 +259,11 @@ module Make
       fill_xs.(1) <- hp_x1;
       fill_xs.(2) <- hp_x1;
       (* equip *)
-      player.pl_prm |> set_equip_data
-                         (Some pl.weapon) pl.spell
-                         (pl |> Player.remaining_casts);
-      (match pl.color with
-       | 0 -> player.pl_alt |> set_equip_data None (Some Fire) (Some 2)
-       | _ -> player.pl_alt |> set_equip_data (Some Rapier) (Some Ice) (Some 1));
+      player.pl_prm |> set_equip_data pl.prm;
+      player.pl_alt |> set_equip_data pl.alt;
       (* stats *)
       player.pl_stats_text <- pl_stats_text
-                                ~atk:(pl.weapon |> Weapon_type.atk)
+                                ~atk:(Weapon_type.atk pl.prm.weapon)
                                 ~def:0
 
     let render_player_icon ~assets ~cx tf color =
