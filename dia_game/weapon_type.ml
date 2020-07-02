@@ -26,12 +26,12 @@ let crit_bonus = function
     | Rapier -> 1
   | Staff    -> 2
 
-let spell_casts = function
+let extra_spell_cast = function
   | Shovel
     | Dagger
     | Sword
-    | Rapier -> 3
-  | Staff    -> 4
+    | Rapier -> false
+  | Staff    -> true
 
 let dist =
   [ Shovel, 1;

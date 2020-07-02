@@ -239,9 +239,10 @@ module Make
     let set_equip_data (eq: Player.Equip.t) equip =
       equip.eq_weap <- Some eq.weapon;
       equip.eq_spell <- eq.spell;
-      equip.eq_spell_casts_text <- (match Player.Equip.casts_left eq with
-                                    | 0 -> ""
-                                    | n -> pl_spell_casts_text n)
+      equip.eq_spell_casts_text <- (if eq.spell |> Option.is_some then
+                                      pl_spell_casts_text eq.casts_left
+                                    else
+                                      "")
 
     let set_player_data ~assets _time0 (pl: Player.t) player =
       (* hp text *)

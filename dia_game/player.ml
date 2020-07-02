@@ -1,36 +1,30 @@
-open Dia_util
-
 module Equip = struct
   type t =
     { weapon: Weapon_type.t;
       spell: Spell_type.t option;
-      casts: int }
+      casts_left: int }
 
   let default =
     { weapon = Dagger;
       spell = None;
-      casts = 0 }
-
-  let casts_left { weapon; spell; casts } =
-    if spell |> Option.is_some then
-      Weapon_type.spell_casts weapon - casts
-    else
-      0
+      casts_left = 0 }
 
   let normalize t =
-    if (t |> casts_left) <= 0 then
+    if t.casts_left < 0
+       || (t.casts_left = 0 && not (Weapon_type.extra_spell_cast t.weapon))
+    then
       { t with spell = None }
     else
       t
 
   let set_spell s t =
-    { t with spell = Some s; casts = 0 }
+    { t with spell = Some s; casts_left = Rules.max_casts }
 
   let set_weapon w t =
     normalize { t with weapon = w }
 
   let use_cast t =
-    normalize { t with casts = t.casts + 1 }
+    normalize { t with casts_left = t.casts_left - 1 }
 end
 
 type t =
